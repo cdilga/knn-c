@@ -5,4 +5,4 @@ CFLAGS = -Wall -I.
 all: knn
 
 knn: knn.c
-	$(CC) knn.c terminal_user_input.c $(CFLAGS) -o MusicPlayer
+	$(CC) knn.c terminal_user_input.c $(CFLAGS) -o knn

@@ -8,20 +8,20 @@
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
-//Dataset holds all of the points
-typedef struct {
-  //d - the dimensionality of the dataset
-  int dimensionality;
-  int num_points;
-  point* points;
-}
-
 //Datatype is euclidean point
 typedef struct {
   int *dimensions;
   //category must be in the categories array
   int category;
 } point;
+
+//Dataset holds all of the points
+typedef struct {
+  //d - the dimensionality of the dataset
+  int dimensionality;
+  int num_points;
+  point* points;
+} dataset;
 
 //Apparently C doesn't have boolean types
 typedef enum {
@@ -40,7 +40,7 @@ int knn_pow(int x, int n) {
 //Distance
 //Return: number with the distance, a float
 //Inputs, euclidean point, x and euclidean point y
-float distance(euclidean_point x, euclidean_point y) {
+float point_distance(point x, point y) {
   float dist = 0;
   //verify we can actually compare the arrays
   if (x.dimensions != y.dimensions) {
