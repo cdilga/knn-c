@@ -8,19 +8,20 @@
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
-//Datatype is euclidean point
+//Dataset holds all of the points
 typedef struct {
-  int dimensions;
-  int *element;
-} euclidean_point;
-
-//Datatype that classifies points
-typedef struct {
-  euclidean_point datapoint;
-  classification classification;
+  //d - the dimensionality of the dataset
+  int dimensionality;
+  int num_points;
+  point* points;
 }
 
-
+//Datatype is euclidean point
+typedef struct {
+  int *dimensions;
+  //category must be in the categories array
+  int category;
+} point;
 
 //Apparently C doesn't have boolean types
 typedef enum {
@@ -73,10 +74,10 @@ int main () {
   //To add a datapoint, enter
 
   int array1[4] = {2, 2, 2, 10};
-  euclidean_point point1 = {4, array1};
+  point point1 = {4, array1};
 
   int array2[4] = {3, 9, 2, 2};
-  euclidean_point point2 = {4, array2};
+  point point2 = {4, array2};
 
   printf("Distance: %lf", distance(point1, point2));
   return 0;
