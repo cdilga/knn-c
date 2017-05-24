@@ -10,7 +10,7 @@
 
 //Datatype is euclidean point
 typedef struct {
-  int *dimensions;
+  int *dimension;
   //category must be in the categories array
   int category;
 } point;
@@ -40,20 +40,15 @@ int knn_pow(int x, int n) {
 //Distance
 //Return: number with the distance, a float
 //Inputs, euclidean point, x and euclidean point y
-float point_distance(point x, point y) {
+float point_distance(point x, point y, int dimensions) {
   float dist = 0;
-  //verify we can actually compare the arrays
-  if (x.dimensions != y.dimensions) {
-    printf("Error: dimensionality mismatch\n");
-    //TODO, limit data coupling here by using an alternative control measure
-    return -1;
-  }
 
   int sum = 0;
+
   //for each element in each, get the squared difference
-  for (int i = 0; i < x.dimensions; i++) {
+  for (int i = 0; i < dimensions; i++) {
     //sum this squared difference
-    sum = sum + pow(x.element[i] - y.element[i], 2);
+    sum = sum + pow(x.dimension[i] - y.dimension[i], 2);
   }
   //get this sum and find the square root
   dist = sqrt(sum);
@@ -72,13 +67,14 @@ int main () {
   //Set the dimensionality of the
   //Enter in a number of datapoints to add
   //To add a datapoint, enter
+  dataset user_dataset = {4, 2, NULL};
 
   int array1[4] = {2, 2, 2, 10};
-  point point1 = {4, array1};
+  point point1 = {array1, 1};
 
   int array2[4] = {3, 9, 2, 2};
-  point point2 = {4, array2};
+  point point2 = {array2, 0};
 
-  printf("Distance: %lf", distance(point1, point2));
+  printf("Distance: %lf", point_distance(point1, point2, user_dataset.dimensionality));
   return 0;
 }
