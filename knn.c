@@ -5,12 +5,21 @@
 #include <math.h>
 #include <unistd.h>
 
+#include <assert.h>
+#include "greatest.h"
+
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
+//Define a testing suite that is external to reduce code in this file
+SUITE_EXTERN(external_suite);
+
+//Define the debug level. Defaults to terminal output
+#define DEBUG = 1
+
 //Datatype is euclidean point
 typedef struct {
-  int *dimension;
+  float *dimension;
   //category must be in the categories array
   int category;
 } point;
@@ -58,8 +67,29 @@ float point_distance(point x, point y, int dimensions) {
 
 //Loop through all the data, comparing each distance to every other distance
 //storing the result in an array
+//Take in a dataset
+//Take in k - warn if k is
+//Take in one point, and compare that point to the k-Nearest Neighbours
+//Get the euclidean distance to every neighbour
+//Sort the neighbours into ascending order
+//Take the first k neighbours
+//Find the largest count of the classification. (what to do in a tie?)
 
-int main () {
+
+//Definitions required for the testrunner
+GREATEST_MAIN_DEFS();
+
+//This main function takes commandline arguments
+int main (int argc, char **argv) {
+  //Setup required testing
+  GREATEST_MAIN_BEGIN();
+
+  //Runs tests from external file specified above
+  RUN_SUITE(external_suite);
+
+  //Show results of the testing
+  GREATEST_MAIN_END();
+
   //get the number of categories
   //Set an array to the number of categories
   //Populate the array with a string corresponding to each categories
@@ -67,13 +97,15 @@ int main () {
   //Set the dimensionality of the
   //Enter in a number of datapoints to add
   //To add a datapoint, enter
-  dataset user_dataset = {4, 2, NULL};
 
-  int array1[4] = {2, 2, 2, 10};
+
+  float array1[4] = {2, 2, 2, 10};
   point point1 = {array1, 1};
 
-  int array2[4] = {3, 9, 2, 2};
+  float array2[4] = {3, 9, 2, 2};
   point point2 = {array2, 0};
+
+  dataset user_dataset = {4, 2, NULL};
 
   printf("Distance: %lf", point_distance(point1, point2, user_dataset.dimensionality));
   return 0;
