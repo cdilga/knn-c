@@ -75,20 +75,24 @@ float point_distance(point x, point y, int dimensions) {
 //Take the first k neighbours
 //Find the largest count of the classification. (what to do in a tie?)
 
-
+#ifndef NDEBUG
 //Definitions required for the testrunner
 GREATEST_MAIN_DEFS();
+#endif
 
 //This main function takes commandline arguments
 int main (int argc, char **argv) {
+  //Wrapped in #ifndef so we can make a release version
+  #ifndef NDEBUG
   //Setup required testing
-  GREATEST_MAIN_BEGIN();
+    GREATEST_MAIN_BEGIN();
 
-  //Runs tests from external file specified above
-  RUN_SUITE(external_suite);
+    //Runs tests from external file specified above
+    RUN_SUITE(external_suite);
 
-  //Show results of the testing
-  GREATEST_MAIN_END();
+    //Show results of the testing
+    GREATEST_MAIN_END();
+  #endif
 
   //get the number of categories
   //Set an array to the number of categories
@@ -98,15 +102,5 @@ int main (int argc, char **argv) {
   //Enter in a number of datapoints to add
   //To add a datapoint, enter
 
-
-  float array1[4] = {2, 2, 2, 10};
-  point point1 = {array1, 1};
-
-  float array2[4] = {3, 9, 2, 2};
-  point point2 = {array2, 0};
-
-  dataset user_dataset = {4, 2, NULL};
-
-  printf("Distance: %lf", point_distance(point1, point2, user_dataset.dimensionality));
   return 0;
 }
