@@ -41,6 +41,19 @@ TEST distance_1_dimension(void) {
   PASS();
 }
 
+//How do I initialise arrays with the {} curly braces syntax?
+
+//Test the sort function, which will input an array and return an array of
+//ordered classification integers only
+
+//Test the creation of an array (neighbours) with distances to every single point,
+//taking one point and a dataset
+//We need a distance associated with a point
+
+//
+
+//Test ordering of a dataset, by distance
+
 /* Suites can group multiple tests with common setup. */
 SUITE(external_suite) {
     RUN_TEST(distance_1_dimension);

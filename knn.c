@@ -20,6 +20,7 @@ SUITE_EXTERN(external_suite);
 //Datatype is euclidean point
 typedef struct {
   float *dimension;
+  point_neighbour_relationship *neighbour;
   //category must be in the categories array
   int category;
 } point;
@@ -31,6 +32,12 @@ typedef struct {
   int num_points;
   point* points;
 } dataset;
+
+//Distance holds the distance from a point, to another point
+typedef struct {
+  float distance;
+  point *neighbour_pointer;
+} point_neighbour_relationship
 
 //Apparently C doesn't have boolean types
 typedef enum {
@@ -68,10 +75,13 @@ float point_distance(point x, point y, int dimensions) {
 //Loop through all the data, comparing each distance to every other distance
 //storing the result in an array
 //Take in a dataset
-//Take in k - warn if k is
+//Take in k - warn if k is even
 //Take in one point, and compare that point to the k-Nearest Neighbours
-//Get the euclidean distance to every neighbour
-//Sort the neighbours into ascending order
+
+//Doing a k nearest neighbour search
+//Get the euclidean distance to every neighbour, if the neighbour is closer than the last keep it in a distance array
+//Create array of distances, with the point associated with the distance
+//Keep track of the distance and a pointer to the point in the dataset
 //Take the first k neighbours
 //Find the largest count of the classification. (what to do in a tie?)
 
