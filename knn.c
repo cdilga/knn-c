@@ -22,7 +22,12 @@ SUITE_EXTERN(external_suite);
 //In order to use this struct, you must first define an array of char* on the class
 typedef struct {
   my_string *categories;
-} classifier;
+} Classifier_List;
+
+//Datatype allows to return list of neighbours because you cannont return arrays in c
+typedef struct {
+  int *neighbour;
+} Neighbour_List;
 
 //Required to resolve circular struct dependency between the point neighbour
 //relationship and the point
@@ -84,28 +89,32 @@ float point_distance(Point x, Point y, int dimensions) {
   return dist;
 }
 
-//Loop through all the data, comparing each distance to every other distance
-//storing the result in an array
-//Take in a dataset
-//Take in k - warn if k is even
-//Take in one point, and compare that point to the k-Nearest Neighbours
-
 //Doing a k nearest neighbour search
-//Get the euclidean distance to every neighbour, if the neighbour is closer than the last keep it in a distance array
-//Create array of distances, with the point associated with the distance
-//Keep track of the distance and a pointer to the point in the dataset
-//Take the first k neighbours
-//Find the largest count of the classification. (what to do in a tie?)
-//return the list of k nearest neighbours, with an ordered array of classifier integers
-int *knn_search(int k, Point comparison_point, Dataset single_point_dataset, int category) {
 
-  return 1;
+int knn_search(int k, Point comparison_point, Dataset *datapoints) {
+  //Warn if k is even
+  if (k % 2 == 0) {
+    printf("Warning: %d is even. Tie cases have undefined behviour\n", k);
+  }
+
+  //Get the euclidean distance to every neighbour,
+  for (int i = 0; i < datapoints->num_points; i++) {
+    //if the neighbour is closer than the last closest keep it in a distance array
+    printf("Point distance: %lf\n", point_distance(comparison_point, datapoints->points[i], datapoints->dimensionality));
+  }
+
+
+  //Keep track of the distance and a pointer to the point in the dataset
+  //Take the first k neighbours
+  //Find the largest count of the classification. (what to do in a tie?)
+  //return the category of the point
+  return 2;
 }
 
 
 //Function that takes in a classification integer, and returns a classification string
 //Requires a map between the integers and the string in the form of a classification_map datatype
-my_string classify(classifier category_map, int category) {
+my_string classify(Classifier_List category_map, int category) {
   my_string class = category_map.categories[category];
   return class;
 }

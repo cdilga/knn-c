@@ -4,7 +4,7 @@
 #include "terminal_user_input.h"
 
 //Defining tolerances for tests
-#define FLOAT_TOLERANCE 0.001
+#define FLOAT_TOLERANCE 0.01
 
 /* A test runs various assertions, then calls PASS(), FAIL(), or SKIP(). */
 TEST distance_3_dimensions(void) {
@@ -67,8 +67,43 @@ TEST find_1_nearest_neighbour(void) {
   Point comparision_point = {comparison_dimensions, 0, NULL};
 
   //One point to compare to the rest
-  ASSERT_EQ(category, knn_search(k, comparision_point, single_point_dataset, category));
-  //See the list of 1 nearest points matches with the rest
+  ASSERT_EQ(category, knn_search(k, comparision_point, &single_point_dataset));
+  PASS();
+}
+
+
+//One dimensional, 5 point dataset, find average of k=3 neighbours
+TEST find_3_nearest_neighbour(void) {
+  //Setup
+  int k = 3;
+
+  //Pass it the stuff it needs, the dataset,
+  float dimensions0[] = {5.0};
+  Point point0 = {dimensions0, 0, NULL};
+
+  float dimensions1[] = {6.0};
+  Point point1 = {dimensions1, 1, NULL};
+
+  float dimensions2[] = {7.0};
+  Point point2 = {dimensions2, 1, NULL};
+
+  float dimensions3[] = {0.0};
+  Point point3 = {dimensions3, 0, NULL};
+
+  float dimensions4[] = {-1.0};
+  Point point4 = {dimensions4, 0, NULL};
+
+  //Since we've only got a length of 1, just use a pointer straight to the single point
+  Point points[5] = {point0, point1, point2, point3, point4};
+  Dataset point_dataset = {1, 5, points};
+
+  float comparison_dimensions[] = {10};
+  //TODO, fix the comparison point category
+  Point comparision_point = {comparison_dimensions, 0, NULL};
+
+  //One point to compare to the rest
+  ASSERT_EQ(1, knn_search(k, comparision_point, &point_dataset));
+  PASS();
 }
 
 TEST classify_int(void) {
@@ -76,7 +111,7 @@ TEST classify_int(void) {
   int class = 0;
 
   //Using only the minimum 1 categories
-  classifier flower_map;
+  Classifier_List flower_map;
   flower_map.categories = (my_string*)malloc(sizeof(my_string));
 
   strcpy(flower_map.categories[0].str, "Iris");
@@ -97,6 +132,7 @@ SUITE(external_suite) {
     RUN_TEST(classify_int);
 
     RUN_TEST(find_1_nearest_neighbour);
+    RUN_TEST(find_3_nearest_neighbour);
 }
 
 /* Add definitions that need to be in the test runner's main file. */
