@@ -8,4 +8,5 @@ knn: knn.c
 	$(CC) knn.c terminal_user_input.c $(CFLAGS) -DNDEBUG -o knn
 
 test: knn.c
-	$(CC) terminal_user_input.c tests.c $(CFLAGS) -o test_knn
+	$(CC) terminal_user_input.c tests.c $(CFLAGS) -Wextra -o test_knn
+	test_knn.exe -v | contrib/greenest

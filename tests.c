@@ -63,7 +63,7 @@ TEST classify_int(void) {
 
   my_string category = classify(flower_map, class);
 
-  ASSERT_STR_EQ(category.str, "Iris");
+  ASSERT_STR_EQ("Iris", category.str);
   PASS();
   free(flower_map.categories);
 }

@@ -101,11 +101,7 @@ float point_distance(Point x, Point y, int dimensions) {
 //Function that takes in a classification integer, and returns a classification string
 //Requires a map between the integers and the string in the form of a classification_map datatype
 my_string classify(classifier category_map, int category) {
-  //my_string class = category_map.categories[category];
-
-  //Test failing test
-  my_string class;
-  strcpy(class.str, "Zoidberg");
+  my_string class = category_map.categories[category];
   return class;
 }
 
