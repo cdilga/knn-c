@@ -17,27 +17,39 @@ SUITE_EXTERN(external_suite);
 //Define the debug level. Defaults to terminal output
 #define DEBUG = 1
 
-//Datatype is euclidean point
+//Datatype allows classifications to be stored very efficiently
+//Is an array of char *, which is a double char *
+//In order to use this struct, you must first define an array of char* on the class
 typedef struct {
+  char **categories;
+} classifier;
+
+//Required to resolve circular struct dependency between the point neighbour
+//relationship and the point
+struct point_neighbour_relationship;
+
+//Datatype is euclidean point
+typedef struct point {
   float *dimension;
-  point_neighbour_relationship *neighbour;
+
   //category must be in the categories array
   int category;
-} point;
+  struct point_neighbour_relationship *neighbour;
+} Point;
 
 //Dataset holds all of the points
-typedef struct {
+typedef struct dataset {
   //d - the dimensionality of the dataset
   int dimensionality;
   int num_points;
-  point* points;
-} dataset;
+  Point* points;
+} Dataset;
 
 //Distance holds the distance from a point, to another point
-typedef struct {
+typedef struct point_neighour_relationship {
   float distance;
-  point *neighbour_pointer;
-} point_neighbour_relationship
+  Point *neighbour_pointer;
+} Point_Neighbour_Relationship;
 
 //Apparently C doesn't have boolean types
 typedef enum {
@@ -56,7 +68,7 @@ int knn_pow(int x, int n) {
 //Distance
 //Return: number with the distance, a float
 //Inputs, euclidean point, x and euclidean point y
-float point_distance(point x, point y, int dimensions) {
+float point_distance(Point x, Point y, int dimensions) {
   float dist = 0;
 
   int sum = 0;
@@ -84,6 +96,11 @@ float point_distance(point x, point y, int dimensions) {
 //Keep track of the distance and a pointer to the point in the dataset
 //Take the first k neighbours
 //Find the largest count of the classification. (what to do in a tie?)
+//return the list of k nearest neighbours, with an ordered array of classifier integers
+
+//Function that takes in a classification integer, and returns a classification string
+//Requires a map between the integers and the string in the form of a classification_map datatype
+
 
 #ifndef NDEBUG
 //Definitions required for the testrunner
