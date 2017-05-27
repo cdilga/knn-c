@@ -29,17 +29,11 @@ typedef struct {
   int *neighbour;
 } Neighbour_List;
 
-//Required to resolve circular struct dependency between the point neighbour
-//relationship and the point
-struct point_neighbour_relationship;
-
 //Datatype is euclidean point
 typedef struct point {
   float *dimension;
-
   //category must be in the categories array
   int category;
-  struct point_neighbour_relationship *neighbour;
 } Point;
 
 //Dataset holds all of the points
@@ -55,6 +49,12 @@ typedef struct point_neighour_relationship {
   float distance;
   Point *neighbour_pointer;
 } Point_Neighbour_Relationship;
+
+//Since a comparison point is a distinctly different entity to a data point
+typedef struct comparision_point {
+  float *dimension;
+  struct point_neighbour_relationship *neighbour;
+} Comparison_Point;
 
 //Apparently C doesn't have boolean types
 typedef enum {
@@ -73,7 +73,7 @@ int knn_pow(int x, int n) {
 //Distance
 //Return: number with the distance, a float
 //Inputs, euclidean point, x and euclidean point y
-float point_distance(Point x, Point y, int dimensions) {
+float point_distance(Comparison_Point x, Point y, int dimensions) {
   float dist = 0;
 
   int sum = 0;
@@ -91,7 +91,7 @@ float point_distance(Point x, Point y, int dimensions) {
 
 //Doing a k nearest neighbour search
 
-int knn_search(int k, Point comparison_point, Dataset *datapoints) {
+int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
   //Warn if k is even
   if (k % 2 == 0) {
     printf("Warning: %d is even. Tie cases have undefined behviour\n", k);
@@ -100,7 +100,7 @@ int knn_search(int k, Point comparison_point, Dataset *datapoints) {
   //Get the euclidean distance to every neighbour,
   for (int i = 0; i < datapoints->num_points; i++) {
     //if the neighbour is closer than the last closest keep it in a distance array
-    printf("Point distance: %lf\n", point_distance(comparison_point, datapoints->points[i], datapoints->dimensionality));
+    printf("Point distance: %lf\n", point_distance(compare, datapoints->points[i], datapoints->dimensionality));
   }
 
 

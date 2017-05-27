@@ -9,7 +9,7 @@
 /* A test runs various assertions, then calls PASS(), FAIL(), or SKIP(). */
 TEST distance_3_dimensions(void) {
   float array1[3] = {2.0, 2.0, 2.0};
-  Point point1 = {array1, 1, NULL};
+  Comparison_Point point1 = {array1, NULL};
 
   float array2[3] = {5.0, 5.0, 5.0};
   Point point2 = {array2, 0, NULL};
@@ -20,10 +20,10 @@ TEST distance_3_dimensions(void) {
 
 TEST distance_10_dimensions(void) {
   float array1[10] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-  Point point1 = {array1, 1, NULL};
+  Comparison_Point point1 = {array1, NULL};
 
   float array2[10] = {10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0};
-  Point point2 = {array2, 0, NULL};
+  Point point2 = {array2, 0};
 
   ASSERT_IN_RANGE(28.4605, point_distance(point1, point2, 10), FLOAT_TOLERANCE);
   PASS();
@@ -31,10 +31,10 @@ TEST distance_10_dimensions(void) {
 
 TEST distance_1_dimension(void) {
   float array1[1] = {3.0};
-  Point point1 = {array1, 1, NULL};
+  Comparison_Point point1 = {array1, NULL};
 
   float array2[1] = {6.0};
-  Point point2 = {array2, 0, NULL};
+  Point point2 = {array2, 0};
 
   ASSERT_IN_RANGE(3.0, point_distance(point1, point2, 1), FLOAT_TOLERANCE);
   PASS();
@@ -56,7 +56,7 @@ TEST find_1_nearest_neighbour(void) {
   int category = 0;
   //Pass it the stuff it needs, the dataset,
   float dimensions[] = {5};
-  Point point1 = {dimensions, category, NULL};
+  Point point1 = {dimensions, category};
 
   //Since we've only got a length of 1, just use a pointer straight to the single point
   Point* points = &point1;
@@ -64,10 +64,10 @@ TEST find_1_nearest_neighbour(void) {
 
   float comparison_dimensions[] = {3};
   //TODO, fix the comparison point category
-  Point comparision_point = {comparison_dimensions, 0, NULL};
+  Comparison_Point compare = {comparison_dimensions, 0, NULL};
 
   //One point to compare to the rest
-  ASSERT_EQ(category, knn_search(k, comparision_point, &single_point_dataset));
+  ASSERT_EQ(category, knn_search(k, compare, &single_point_dataset));
   PASS();
 }
 
@@ -79,19 +79,19 @@ TEST find_3_nearest_neighbour(void) {
 
   //Pass it the stuff it needs, the dataset,
   float dimensions0[] = {5.0};
-  Point point0 = {dimensions0, 0, NULL};
+  Point point0 = {dimensions0, 0};
 
   float dimensions1[] = {6.0};
-  Point point1 = {dimensions1, 1, NULL};
+  Point point1 = {dimensions1, 1};
 
   float dimensions2[] = {7.0};
-  Point point2 = {dimensions2, 1, NULL};
+  Point point2 = {dimensions2, 1};
 
   float dimensions3[] = {0.0};
-  Point point3 = {dimensions3, 0, NULL};
+  Point point3 = {dimensions3, 0};
 
   float dimensions4[] = {-1.0};
-  Point point4 = {dimensions4, 0, NULL};
+  Point point4 = {dimensions4, 0};
 
   //Since we've only got a length of 1, just use a pointer straight to the single point
   Point points[5] = {point0, point1, point2, point3, point4};
@@ -99,10 +99,10 @@ TEST find_3_nearest_neighbour(void) {
 
   float comparison_dimensions[] = {10};
   //TODO, fix the comparison point category
-  Point comparision_point = {comparison_dimensions, 0, NULL};
+  Comparison_Point compare = {comparison_dimensions, NULL};
 
   //One point to compare to the rest
-  ASSERT_EQ(1, knn_search(k, comparision_point, &point_dataset));
+  ASSERT_EQ(1, knn_search(k, compare, &point_dataset));
   PASS();
 }
 
