@@ -97,6 +97,11 @@ float point_distance(Point x, Point y, int dimensions) {
 //Take the first k neighbours
 //Find the largest count of the classification. (what to do in a tie?)
 //return the list of k nearest neighbours, with an ordered array of classifier integers
+int *knn_search(int k, Point comparison_point, Dataset single_point_dataset, int category) {
+
+  return 1;
+}
+
 
 //Function that takes in a classification integer, and returns a classification string
 //Requires a map between the integers and the string in the form of a classification_map datatype

@@ -49,7 +49,27 @@ TEST distance_1_dimension(void) {
 //Test k NN search
 //Ensure that the returned array contains the correct integers
 
-//Test ordering of a dataset, by distance
+//Test the nearest 1 neighbour can be found
+TEST find_1_nearest_neighbour(void) {
+  int k = 1;
+
+  int category = 0;
+  //Pass it the stuff it needs, the dataset,
+  float dimensions[] = {5};
+  Point point1 = {dimensions, category, NULL};
+
+  //Since we've only got a length of 1, just use a pointer straight to the single point
+  Point* points = &point1;
+  Dataset single_point_dataset = {1, 1, points};
+
+  float comparison_dimensions[] = {3};
+  //TODO, fix the comparison point category
+  Point comparision_point = {comparison_dimensions, 0, NULL};
+
+  //One point to compare to the rest
+  ASSERT_EQ(category, knn_search(k, comparision_point, single_point_dataset, category));
+  //See the list of 1 nearest points matches with the rest
+}
 
 TEST classify_int(void) {
   //The class integer to be selected
@@ -75,6 +95,8 @@ SUITE(external_suite) {
     RUN_TEST(distance_10_dimensions);
 
     RUN_TEST(classify_int);
+
+    RUN_TEST(find_1_nearest_neighbour);
 }
 
 /* Add definitions that need to be in the test runner's main file. */
