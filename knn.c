@@ -21,7 +21,7 @@ SUITE_EXTERN(external_suite);
 //Is an array of char *, which is a double char *
 //In order to use this struct, you must first define an array of char* on the class
 typedef struct {
-  char **categories;
+  my_string *categories;
 } classifier;
 
 //Required to resolve circular struct dependency between the point neighbour
@@ -100,7 +100,14 @@ float point_distance(Point x, Point y, int dimensions) {
 
 //Function that takes in a classification integer, and returns a classification string
 //Requires a map between the integers and the string in the form of a classification_map datatype
+my_string classify(classifier category_map, int category) {
+  //my_string class = category_map.categories[category];
 
+  //Test failing test
+  my_string class;
+  strcpy(class.str, "Zoidberg");
+  return class;
+}
 
 #ifndef NDEBUG
 //Definitions required for the testrunner
