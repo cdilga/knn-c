@@ -6,6 +6,63 @@
 //Defining tolerances for tests
 #define FLOAT_TOLERANCE 0.01
 
+TEST mode_3_inputs(void) {
+  //Setup array of integers
+  int inputs[3] = {3, 3, 7};
+
+  //Pass array of integers into function
+  //Check mode is correct
+
+  ASSERT_EQ(3, mode(inputs, 3));
+
+  PASS();
+}
+
+TEST mode_7_inputs(void) {
+  //Setup array of integers
+  int inputs[7] = {1, 2, 3, 1, 7, 8, 1};
+
+  //Pass array of integers into function
+  //Check mode is correct
+
+  ASSERT_EQ(1, mode(inputs, 7));
+
+  PASS();
+}
+
+//Test bimodal
+
+//Compare two integers that are equal
+TEST compare_ints(void) {
+  int n1 = 1;
+  int n2 = 1;
+  ASSERT_EQ(compare_int(&n1, &n2), 0);
+  PASS();
+}
+
+//Compare two integers that are equal
+TEST compare_greater_int(void) {
+  int n1 = 2;
+  int n2 = 1;
+  ASSERT_EQ(compare_int(&n1, &n2), 1);
+  PASS();
+}
+
+//Compare two integers that are equal
+TEST compare_very_different_int_negative (void) {
+  int n1 = 1;
+  int n2 = 4;
+  ASSERT_EQ(compare_int(&n1, &n2), -1);
+  PASS();
+}
+
+TEST compare_very_different_int_positive (void) {
+  int n1 = 4;
+  int n2 = 1;
+  ASSERT_EQ(compare_int(&n1, &n2), 1);
+  PASS();
+}
+
 /* A test runs various assertions, then calls PASS(), FAIL(), or SKIP(). */
 TEST distance_3_dimensions(void) {
   float array1[3] = {2.0, 2.0, 2.0};
@@ -73,6 +130,7 @@ TEST find_1_nearest_neighbour(void) {
 
 
 //One dimensional, 5 point dataset, find average of k=3 neighbours
+//Test the code can handle updating 3 of the 5 without having to update a distance
 TEST find_3_nearest_neighbour(void) {
   //Setup
   int k = 3;
@@ -133,6 +191,15 @@ SUITE(external_suite) {
 
     RUN_TEST(find_1_nearest_neighbour);
     RUN_TEST(find_3_nearest_neighbour);
+
+    RUN_TEST(mode_3_inputs);
+    RUN_TEST(mode_7_inputs);
+
+    RUN_TEST(compare_ints);
+    RUN_TEST(compare_greater_int);
+    RUN_TEST(compare_very_different_int_positive);
+    RUN_TEST(compare_very_different_int_negative);
+
 }
 
 /* Add definitions that need to be in the test runner's main file. */

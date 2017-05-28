@@ -26,7 +26,7 @@ typedef struct {
 
 //Datatype allows to return list of neighbours because you cannont return arrays in c
 typedef struct {
-  int *neighbour;
+  int *category;
 } Neighbour_List;
 
 //Datatype is euclidean point
@@ -45,7 +45,7 @@ typedef struct dataset {
 } Dataset;
 
 //Distance holds the distance from a point, to another point
-typedef struct point_neighour_relationship {
+typedef struct point_neighbour_relationship {
   float distance;
   Point *neighbour_pointer;
 } Point_Neighbour_Relationship;
@@ -53,7 +53,7 @@ typedef struct point_neighour_relationship {
 //Since a comparison point is a distinctly different entity to a data point
 typedef struct comparision_point {
   float *dimension;
-  struct point_neighbour_relationship *neighbour;
+  Point_Neighbour_Relationship *neighbour;
 } Comparison_Point;
 
 //Apparently C doesn't have boolean types
@@ -89,6 +89,54 @@ float point_distance(Comparison_Point x, Point y, int dimensions) {
   return dist;
 }
 
+//Compare two integers
+int compare_int(const void *v1, const void *v2) {
+  int n1 = *(int*)v1;
+  int n2 = *(int*)v2;
+  if (n1 - n2 > 1) {
+    return 1;
+  } else if (n1 - n2 < -1) {
+    return -1;
+  }
+  return n1 - n2;
+}
+//if value 1 is greater than value 2, positive,
+//if equal, 0
+//if value 1 less value 2, negative,
+
+//Calculate the mode
+int mode(int *values, int num_values) {
+  //Sort the array
+  int current_counter = 1;
+  int max_count = 1;
+  int max_index = 0;
+  //Count the number of each number
+  qsort(values, num_values, sizeof(int), compare_int);
+  printf("Values[%d]: %d\n", 0, values[0]);
+  for (int i = 1; i < num_values; i++) {
+    //if this is the same as teh last
+    if (values[i-1] == values[i]) {
+      //increase the couter
+      current_counter += 1;
+    } else if (current_counter > max_count) {
+      //if the counter is greater than the max counter
+      //set the max counter to counter
+      max_count = current_counter;
+
+      //update the max_index
+      max_index = i - 1;
+
+      //set the couter to 0
+      current_counter = 0;
+    }
+
+    //Keep a reference to an instance of the highest counted number in the array
+    printf("Values[%d]: %d\n", i, values[i]);
+  }
+
+  return values[max_index];
+}
+
 //Doing a k nearest neighbour search
 
 int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
@@ -97,18 +145,70 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
     printf("Warning: %d is even. Tie cases have undefined behviour\n", k);
   }
 
-  //Get the euclidean distance to every neighbour,
-  for (int i = 0; i < datapoints->num_points; i++) {
-    //if the neighbour is closer than the last closest keep it in a distance array
-    printf("Point distance: %lf\n", point_distance(compare, datapoints->points[i], datapoints->dimensionality));
+  //create an array the length of k to put all of the compared points in
+  compare.neighbour = (Point_Neighbour_Relationship*)malloc(k*sizeof(Point_Neighbour_Relationship));
+  //Initialise everything to 0/null so that we can tell if it's been changed.
+  for (int i = 0; i < k; i++) {
+    compare.neighbour[i] = (Point_Neighbour_Relationship){0, NULL};
   }
 
+  //Get the euclidean distance to every neighbour,
+  for (int i = 0; i < datapoints->num_points; i++) {
+    float distance = point_distance(compare, datapoints->points[i], datapoints->dimensionality);
 
-  //Keep track of the distance and a pointer to the point in the dataset
-  //Take the first k neighbours
-  //Find the largest count of the classification. (what to do in a tie?)
-  //return the category of the point
-  return 2;
+    #ifdef DEBUG
+    printf("Point distance: %lf\n", distance);
+    #endif
+
+    //if the neighbour is closer than the last, or it's null pointer distance closest keep it in a distance array
+    //loop through all of the values for k, and keep the value from the comparison list for the compare point which is update_index.
+    float max = 0;
+    int update_index = 0;
+    for (int j = 0; j < k; j++) {
+      if (compare.neighbour[j].neighbour_pointer == NULL) {
+        max = compare.neighbour[j].distance;
+        update_index = j;
+      } else if (compare.neighbour[j].distance > max) {
+        max = compare.neighbour[j].distance;
+        update_index = j;
+
+        // #ifdef DEBUG
+        // printf("Neighbour number: %d\nNeighbour Distance: %lf\nNeighbour pointer: %d\n", j, compare.neighbour[j].distance, compare.neighbour[j].neighbour_pointer);
+        // #endif
+      }
+    }
+
+    //if the current point distance is less than the largest recorded distance, or if the distances haven't been set
+    if (compare.neighbour[update_index].neighbour_pointer == NULL || compare.neighbour[update_index].distance > distance) {
+      //Update the distance at update_index
+      #ifdef DEBUG
+      printf("Neighbour number: %d is null, updating pointer\n", i);
+      #endif
+      compare.neighbour[i].distance = distance;
+      compare.neighbour[i].neighbour_pointer = datapoints->points+i;
+
+      }
+      #ifdef DEBUG
+      printf("=========================================\n");
+      #endif
+  }
+  //Now find the most frequently occurring neighbour pointer type
+  //first get all the neighbour pointer categories and put them into a neighbour list
+  int neighbour_categories[k];
+
+  for (int i = 0; i < k; i++) {
+    #ifdef DEBUG
+    printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
+    #endif
+
+    neighbour_categories[i] = compare.neighbour[i].neighbour_pointer->category;
+  }
+
+  //Find the mode of the categories
+  //Call fuction with array of int and the length of the array and return the result
+
+  free(compare.neighbour);
+  return mode(neighbour_categories, k);
 }
 
 
