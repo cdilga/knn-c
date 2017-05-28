@@ -172,9 +172,9 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
         max = compare.neighbour[j].distance;
         update_index = j;
 
-        // #ifdef DEBUG
-        // printf("Neighbour number: %d\nNeighbour Distance: %lf\nNeighbour pointer: %d\n", j, compare.neighbour[j].distance, compare.neighbour[j].neighbour_pointer);
-        // #endif
+        #ifdef DEBUG
+        printf("update_index: %d\nNeighbour Distance: %lf\nNeighbour pointer: %d\n", j, compare.neighbour[j].distance, compare.neighbour[j].neighbour_pointer);
+        #endif
       }
     }
 

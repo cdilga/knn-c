@@ -97,6 +97,17 @@ TEST distance_1_dimension(void) {
   PASS();
 }
 
+TEST distance_1_dimension_fraction(void) {
+  float array1[1] = {3.0};
+  Comparison_Point point1 = {array1, NULL};
+
+  float array2[1] = {3.5};
+  Point point2 = {array2, 0};
+
+  ASSERT_IN_RANGE(0.5, point_distance(point1, point2, 1), FLOAT_TOLERANCE);
+  PASS();
+}
+
 //How do I initialise arrays with the {} curly braces syntax?
 
 //Test the creation of an array (neighbours) with distances to every single point,
@@ -155,12 +166,15 @@ TEST find_3_nearest_neighbour(void) {
   Point points[5] = {point0, point1, point2, point3, point4};
   Dataset point_dataset = {1, 5, points};
 
-  float comparison_dimensions[] = {10};
+  float comparison_dimensions[] = {6.5};
   //TODO, fix the comparison point category
   Comparison_Point compare = {comparison_dimensions, NULL};
 
+  int category = knn_search(k, compare, &point_dataset);
+  printf("Category: %d\n", category);
+
   //One point to compare to the rest
-  ASSERT_EQ(1, knn_search(k, compare, &point_dataset));
+  ASSERT_EQ(1, category);
   PASS();
 }
 
@@ -184,6 +198,7 @@ TEST classify_int(void) {
 /* Suites can group multiple tests with common setup. */
 SUITE(external_suite) {
     RUN_TEST(distance_1_dimension);
+    RUN_TEST(distance_1_dimension_fraction);
     RUN_TEST(distance_3_dimensions);
     RUN_TEST(distance_10_dimensions);
 
