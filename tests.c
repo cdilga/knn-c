@@ -18,6 +18,18 @@ TEST mode_3_inputs(void) {
   PASS();
 }
 
+TEST mode_with_zero (void) {
+  //Setup array of integers
+  int inputs[3] = {0, 1, 1};
+
+  //Pass array of integers into function
+  //Check mode is correct
+
+  ASSERT_EQ(1, mode(inputs, 3));
+
+  PASS();
+}
+
 TEST mode_7_inputs(void) {
   //Setup array of integers
   int inputs[7] = {1, 2, 3, 1, 7, 8, 1};
@@ -204,16 +216,17 @@ SUITE(external_suite) {
 
     RUN_TEST(classify_int);
 
-    RUN_TEST(find_1_nearest_neighbour);
-    RUN_TEST(find_3_nearest_neighbour);
-
     RUN_TEST(mode_3_inputs);
+    RUN_TEST(mode_with_zero);
     RUN_TEST(mode_7_inputs);
 
     RUN_TEST(compare_ints);
     RUN_TEST(compare_greater_int);
     RUN_TEST(compare_very_different_int_positive);
     RUN_TEST(compare_very_different_int_negative);
+
+    RUN_TEST(find_1_nearest_neighbour);
+    RUN_TEST(find_3_nearest_neighbour);
 
 }
 

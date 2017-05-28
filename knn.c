@@ -76,13 +76,14 @@ int knn_pow(int x, int n) {
 float point_distance(Comparison_Point x, Point y, int dimensions) {
   float dist = 0;
 
-  int sum = 0;
+  float sum = 0;
 
   //for each element in each, get the squared difference
   for (int i = 0; i < dimensions; i++) {
     //sum this squared difference
     sum = sum + pow(x.dimension[i] - y.dimension[i], 2);
   }
+
   //get this sum and find the square root
   dist = sqrt(sum);
 
@@ -112,7 +113,9 @@ int mode(int *values, int num_values) {
   int max_index = 0;
   //Count the number of each number
   qsort(values, num_values, sizeof(int), compare_int);
+  #ifdef DEBUG
   printf("Values[%d]: %d\n", 0, values[0]);
+  #endif
   for (int i = 1; i < num_values; i++) {
     //if this is the same as teh last
     if (values[i-1] == values[i]) {
@@ -125,13 +128,30 @@ int mode(int *values, int num_values) {
 
       //update the max_index
       max_index = i - 1;
+      #ifdef DEBUG
+      printf("Max index updated to %d\n", i - 1);
+      #endif
 
       //set the couter to 0
       current_counter = 0;
     }
+    //If it's the last one, and the loop doesn't go through again
+    if (current_counter > max_count) {
+      //if the counter is greater than the max counter
+      //set the max counter to counter
+      max_count = current_counter;
+
+      //update the max_index
+      max_index = i;
+      #ifdef DEBUG
+      printf("Max index updated to %d\n", i - 1);
+      #endif
+    }
 
     //Keep a reference to an instance of the highest counted number in the array
+    #ifdef DEBUG
     printf("Values[%d]: %d\n", i, values[i]);
+    #endif
   }
 
   return values[max_index];
@@ -186,29 +206,29 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
       #endif
       compare.neighbour[i].distance = distance;
       compare.neighbour[i].neighbour_pointer = datapoints->points+i;
-
-      }
-      #ifdef DEBUG
-      printf("=========================================\n");
-      #endif
+    }
+    #ifdef DEBUG
+    printf("=========================================\n");
+    #endif
   }
   //Now find the most frequently occurring neighbour pointer type
   //first get all the neighbour pointer categories and put them into a neighbour list
   int neighbour_categories[k];
 
   for (int i = 0; i < k; i++) {
-    #ifdef DEBUG
-    printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
-    #endif
-
     neighbour_categories[i] = compare.neighbour[i].neighbour_pointer->category;
+
+    #ifdef DEBUG
+    // printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
+    printf("Category: %d\n", neighbour_categories[i]);
+    #endif
   }
 
   //Find the mode of the categories
   //Call fuction with array of int and the length of the array and return the result
-
-  free(compare.neighbour);
+  printf("mode of categories: %d\n", mode(neighbour_categories, k));
   return mode(neighbour_categories, k);
+  free(compare.neighbour);
 }
 
 
@@ -237,14 +257,6 @@ int main (int argc, char **argv) {
     //Show results of the testing
     GREATEST_MAIN_END();
   #endif
-
-  //get the number of categories
-  //Set an array to the number of categories
-  //Populate the array with a string corresponding to each categories
-
-  //Set the dimensionality of the
-  //Enter in a number of datapoints to add
-  //To add a datapoint, enter
 
   return 0;
 }
