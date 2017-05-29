@@ -9,4 +9,4 @@ knn: knn.c
 
 test: knn.c
 	$(CC) terminal_user_input.c tests.c $(CFLAGS) -Wextra -o test_knn
-	test_knn.exe -v | contrib/greenest
+	test_knn.exe | contrib/greenest
