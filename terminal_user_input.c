@@ -85,6 +85,11 @@ double read_double(const char* prompt)
   return result;
 }
 
+float read_float(const char* prompt)
+{
+  return (float)read_double(prompt);
+}
+
 int read_boolean(const char* prompt)
 {
   my_string line;

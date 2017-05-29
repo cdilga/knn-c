@@ -48,6 +48,11 @@ int read_integer_range(const char* prompt, int min, int max);
 double read_double(const char* prompt);
 
 //
+// Reads a float from the user.
+//
+float read_float(const char* prompt);
+
+//
 // Reads a boolean value from the user
 //
 
