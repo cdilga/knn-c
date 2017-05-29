@@ -22,6 +22,7 @@ SUITE_EXTERN(external_suite);
 //In order to use this struct, you must first define an array of char* on the class
 typedef struct {
   my_string *categories;
+  int num_categories;
 } Classifier_List;
 
 //Datatype allows to return list of neighbours because you cannont return arrays in c
@@ -193,7 +194,7 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
         update_index = j;
 
         #ifdef DEBUG
-        printf("update_index: %d\nNeighbour Distance: %lf\nNeighbour pointer: %d\n", j, compare.neighbour[j].distance, compare.neighbour[j].neighbour_pointer);
+        printf("update_index: %d\nNeighbour Distance: %lf\n", j, compare.neighbour[j].distance);
         #endif
       }
     }
@@ -227,6 +228,8 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
   //Find the mode of the categories
   //Call fuction with array of int and the length of the array and return the result
   printf("mode of categories: %d\n", mode(neighbour_categories, k));
+
+  //TODO fix this memory leak by doing non-dynamic allocation at some point
   return mode(neighbour_categories, k);
   free(compare.neighbour);
 }
@@ -237,6 +240,98 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
 my_string classify(Classifier_List category_map, int category) {
   my_string class = category_map.categories[category];
   return class;
+}
+
+Point read_point_user(int num_dimensions, int num_categories) {
+  Point user_point;
+  user_point.dimension = (float*)malloc(num_dimensions*sizeof(float));
+  for (int i = 0; i < num_dimensions; i++) {
+    printf("%dth dimension: ", i);
+    user_point.dimension[i] = read_float("");
+  }
+  user_point.category = read_integer("Enter a category ID");
+  return user_point;
+}
+
+
+//Passing by reference is less safe, but as a result of the performance increase
+//it is justified
+void print_point(Point *point_arg, int dimensions) {
+  printf("(");
+  int i = 0;
+  do {
+    if (i > 0) {
+      printf(", ");
+    }
+    printf("%lf", point_arg->dimension[i]);
+    i++;
+  } while(i < dimensions);
+  printf(") %d\n", point_arg->category);
+}
+
+//Read in a dataset given the number of categories
+Dataset read_dataset_user(int num_categories) {
+  //Note only good for small datasets. If items are being added for a huge number
+  //this operation would get very expensive. Implemention of a linked list would
+  //potentially be beneficial for this calculation
+  Dataset user_dataset;
+  //Dataset contains
+  //Dimensionality
+  user_dataset.dimensionality = read_integer("Enter the number of dimensions of your classification data: ");
+
+  //Number of points (dynamically updated for UX)
+  user_dataset.num_points = 1;
+  user_dataset.points = (Point*)malloc(sizeof(Point));
+
+  bool enter_another = true;
+  do {
+    user_dataset.points[user_dataset.num_points - 1] = read_point_user(user_dataset.dimensionality, num_categories);
+    enter_another = read_boolean("Enter another? [y/n] ");
+    if (enter_another) {
+      user_dataset.num_points += 1;
+      user_dataset.points = (Point*)realloc(user_dataset.points, user_dataset.num_points*sizeof(Point));
+    } else {
+      break;
+    }
+  } while(enter_another);
+
+  return user_dataset;
+}
+
+//Large dataset shouldn't be copied to support large datasets
+void print_dataset(Dataset *dataset_arg) {
+  printf("Dataset\nDimensionality: %d\nNumber of Points: %d\n", dataset_arg->dimensionality, dataset_arg->num_points);
+  for (int i = 0; i < dataset_arg->num_points; i++) {
+    print_point(dataset_arg->points + i, dataset_arg->dimensionality);
+  }
+}
+
+Classifier_List read_classes_user() {
+  //In future, read string and similar calls could be mocked to allow unit testing
+  //Since the framework already exists for terminal_user input, this could be expanded
+  Classifier_List classes;
+  classes.categories = (my_string*)malloc(sizeof(my_string));
+  classes.num_categories = 1;
+
+  bool enter_another = true;
+  do {
+    classes.categories[classes.num_categories - 1] = read_string("Category name: ");
+    enter_another = read_boolean("Enter another? [y/n] ");
+    if (enter_another) {
+      classes.num_categories += 1;
+      classes.categories = (my_string*)realloc(classes.categories, classes.num_categories*sizeof(my_string));
+    } else {
+      break;
+    }
+  } while(enter_another);
+
+  return classes;
+}
+
+void print_classes(Classifier_List classes) {
+  for (int i = 0; i < classes.num_categories; i++) {
+    printf("Categories: %s\n", classes.categories[i].str);
+  }
 }
 
 #ifndef NDEBUG
@@ -258,5 +353,13 @@ int main (int argc, char **argv) {
     GREATEST_MAIN_END();
   #endif
 
+  Classifier_List classes = read_classes_user();
+  print_classes(classes);
+
+
+  Dataset kicks = read_dataset_user(classes.num_categories);
+  print_dataset(&kicks);
+
+  free(classes.categories);
   return 0;
 }
