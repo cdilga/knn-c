@@ -14,8 +14,8 @@
 //Define a testing suite that is external to reduce code in this file
 SUITE_EXTERN(external_suite);
 
-//Define the debug level. Defaults to terminal output
-#define DEBUG = 1
+//Define the debug level. Outputs verbose output if enabled.
+#define DEBUG
 
 //Datatype allows classifications to be stored very efficiently
 //Is an array of char *, which is a double char *
@@ -115,7 +115,7 @@ int mode(int *values, int num_values) {
   //Count the number of each number
   qsort(values, num_values, sizeof(int), compare_int);
   #ifdef DEBUG
-  printf("Values[%d]: %d\n", 0, values[0]);
+  printf("[DEBUG] Values[%d]: %d\n", 0, values[0]);
   #endif
   for (int i = 1; i < num_values; i++) {
     //if this is the same as teh last
@@ -130,7 +130,7 @@ int mode(int *values, int num_values) {
       //update the max_index
       max_index = i - 1;
       #ifdef DEBUG
-      printf("Max index updated to %d\n", i - 1);
+      printf("[DEBUG] Max index updated to %d\n", i - 1);
       #endif
 
       //set the couter to 0
@@ -145,13 +145,13 @@ int mode(int *values, int num_values) {
       //update the max_index
       max_index = i;
       #ifdef DEBUG
-      printf("Max index updated to %d\n", i - 1);
+      printf("[DEBUG] Max index updated to %d\n", i - 1);
       #endif
     }
 
     //Keep a reference to an instance of the highest counted number in the array
     #ifdef DEBUG
-    printf("Values[%d]: %d\n", i, values[i]);
+    printf("[DEBUG] Values[%d]: %d\n", i, values[i]);
     #endif
   }
 
@@ -163,7 +163,7 @@ int mode(int *values, int num_values) {
 int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
   //Warn if k is even
   if (k % 2 == 0) {
-    printf("Warning: %d is even. Tie cases have undefined behviour\n", k);
+    printf("[DEBUG] Warning: %d is even. Tie cases have undefined behviour\n", k);
   }
 
   //create an array the length of k to put all of the compared points in
@@ -178,7 +178,7 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
     float distance = point_distance(compare, datapoints->points[i], datapoints->dimensionality);
 
     #ifdef DEBUG
-    printf("Point distance: %lf\n", distance);
+    printf("[DEBUG] Point distance: %lf\n", distance);
     #endif
 
     //if the neighbour is closer than the last, or it's null pointer distance closest keep it in a distance array
@@ -194,7 +194,7 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
         update_index = j;
 
         #ifdef DEBUG
-        printf("update_index: %d\nNeighbour Distance: %lf\n", j, compare.neighbour[j].distance);
+        printf("[DEBUG] update_index: %d\nNeighbour Distance: %lf\n", j, compare.neighbour[j].distance);
         #endif
       }
     }
@@ -203,7 +203,7 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
     if (compare.neighbour[update_index].neighbour_pointer == NULL || compare.neighbour[update_index].distance > distance) {
       //Update the distance at update_index
       #ifdef DEBUG
-      printf("Neighbour number: %d is null, updating pointer\n", i);
+      printf("[DEBUG] Neighbour number: %d is null, updating pointer\n", i);
       #endif
       compare.neighbour[i].distance = distance;
       compare.neighbour[i].neighbour_pointer = datapoints->points+i;
@@ -221,17 +221,17 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
 
     #ifdef DEBUG
     // printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
-    printf("Category: %d\n", neighbour_categories[i]);
+    printf("[DEBUG] Category: %d\n", neighbour_categories[i]);
     #endif
   }
 
   //Find the mode of the categories
   //Call fuction with array of int and the length of the array and return the result
-  printf("mode of categories: %d\n", mode(neighbour_categories, k));
+  //printf("mode of categories: %d\n", mode(neighbour_categories, k));
 
   //TODO fix this memory leak by doing non-dynamic allocation at some point
   return mode(neighbour_categories, k);
-  free(compare.neighbour);
+  //free(compare.neighbour);
 }
 
 
@@ -249,7 +249,7 @@ Point read_point_user(int num_dimensions, int num_categories) {
     printf("%dth dimension: ", i);
     user_point.dimension[i] = read_float("");
   }
-  user_point.category = read_integer("Enter a category ID");
+  user_point.category = read_integer_range("Enter a category ID: ", 0, num_categories - 1);
   return user_point;
 }
 
@@ -334,6 +334,18 @@ void print_classes(Classifier_List classes) {
   }
 }
 
+Comparison_Point read_comparison_point_user(int num_dimensions) {
+  Comparison_Point user_point;
+  user_point.dimension = (float*)malloc(num_dimensions*sizeof(float));
+  for (int i = 0; i < num_dimensions; i++) {
+    printf("%dth dimension: ", i);
+    user_point.dimension[i] = read_float("");
+  }
+
+  //TODO fix memory allocation
+  return user_point;
+}
+
 #ifndef NDEBUG
 //Definitions required for the testrunner
 GREATEST_MAIN_DEFS();
@@ -359,6 +371,10 @@ int main (int argc, char **argv) {
 
   Dataset kicks = read_dataset_user(classes.num_categories);
   print_dataset(&kicks);
+
+  Comparison_Point compare = read_comparison_point_user(kicks.dimensionality);
+
+  printf("Classified as: %s", classify(classes, knn_search(3, compare, &kicks)).str);
 
   free(classes.categories);
   return 0;
