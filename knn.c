@@ -15,7 +15,7 @@
 SUITE_EXTERN(external_suite);
 
 //Define the debug level. Outputs verbose output if enabled.
-#define DEBUG
+// #define DEBUG
 
 //Datatype allows classifications to be stored very efficiently
 //Is an array of char *, which is a double char *
@@ -62,6 +62,12 @@ typedef enum {
   false,
   true
 } bool;
+
+// typedef struct csv_file {
+//   char data[][][255];
+//   int num_line;
+//   int num_fields;
+// } CSV_File;
 
 int knn_pow(int x, int n) {
   int result = 1;
@@ -242,6 +248,11 @@ my_string classify(Classifier_List category_map, int category) {
   return class;
 }
 
+//Function that returns a classifier list read in from file
+//Reads in the labels file, specified in parameters
+//Generates a number of labels, inside of a classifier list and records the number
+//of classifiers in the classifier list
+
 Point read_point_user(int num_dimensions, int num_categories) {
   Point user_point;
   user_point.dimension = (float*)malloc(num_dimensions*sizeof(float));
@@ -346,6 +357,178 @@ Comparison_Point read_comparison_point_user(int num_dimensions) {
   return user_point;
 }
 
+int count_fields(char *buffer) {
+  int count = 1;
+  int pos = 0;
+  char current;
+  do {
+    current = buffer[pos];
+    // printf("%c", current);
+    if (current == ',') {
+      count++;
+    }
+    pos++;
+  } while(current != '\n' && current != '\0');
+  #ifdef DEBUG
+  printf("[DEBUG] Number of fields: %d\n", count);
+  #endif
+  return count;
+}
+
+int get_class_num(my_string in_string, Classifier_List *class_list) {
+  //Check to see if any of the strings are present in the classifier list
+  //Could improve with a Levenshtein Distance calculation to account for human errors
+  //Also, if i is zero, we won't even need to check ifit's in there, we know it's not
+  printf("class_list->num_categories: %d\n", class_list->num_categories);
+  for (int i = 0; i < class_list->num_categories; i++) {
+    if (strcmp(class_list->categories[i].str, in_string.str) == 0) {
+      return i;
+    }
+  }
+  //If it isn't present in the existing array, we need to add it in.
+  //Increment the count of categories
+  class_list->num_categories++;
+
+  class_list->categories = realloc(class_list->categories, sizeof(my_string) * class_list->num_categories);
+  class_list->categories[class_list->num_categories - 1] = in_string;
+  return 0;
+}
+
+//Function to read lines from CSV
+//Takes a file name
+my_string extract_field(my_string line, int field) {
+  my_string return_value;
+  //Using https://support.microsoft.com/en-us/help/51327/info-strtok-c-function----documentation-supplement
+  if (field > count_fields(line.str)) {
+    strcpy(return_value.str, "\0");
+    return return_value;
+  }
+  //Potentially unsafe
+  char *token;
+
+  token = strtok(line.str, " ,");
+  //Call strtok "field" times
+  //Return that value of the token
+  for (int i = 1; i < field; i++) {
+    #ifdef DEBUG
+    printf("Token is:  %s\n", token);
+    #endif
+
+    token = strtok(NULL, " ,");
+    #ifdef DEBUG
+    printf("Before copy in loop\n");
+    #endif
+  }
+  strncpy(return_value.str, token, sizeof(return_value.str));
+
+  return return_value;
+}
+
+int count_lines(my_string filename) {
+  FILE *file;
+  if (access(filename.str, F_OK) == -1) {
+    printf("[ERROR] Could not find file");
+    return -1;
+  }
+  file = fopen(filename.str, "r");
+  char buffer[1024];
+  int count = 0;
+  while(fgets(buffer, 1024, file)) {
+    count++;
+  }
+  fclose(file);
+  #ifdef DEBUG
+  printf("[DEBUG] Line number is:  %d\n", count);
+  #endif
+  return count;
+}
+
+Dataset new_dataset() {
+  Point *points = {NULL};
+  Dataset new = {0, 0, points};
+  return new;
+}
+
+//function that takes in a line, and returns a point
+//parse point
+//TODO ADD UNIT TESTS!!!
+Point parse_point(my_string line, int num_dimensions, Classifier_List *class_list) {
+  float *dimensions = (float*)malloc(num_dimensions*sizeof(float));
+  for (int i = 0; i < num_dimensions; i++) {
+    //Go through and pull out the first num fields, and construct a point out of them
+    // pass the string into a function that just mocks out and returns 1
+
+
+    //Since the extract_field function extracts with a base 1, rather than base of 0
+    dimensions[i] = atof(extract_field(line, i + 1).str);
+  }
+
+  Point curr_point;
+  curr_point.dimension = dimensions;
+
+  //Since the data for the class is one after the
+  curr_point.category = get_class_num(extract_field(line, num_dimensions + 1), class_list);
+  #ifdef DEBUG
+  print_point(&curr_point, num_dimensions);
+  #endif
+  return curr_point;
+}
+
+Dataset read_dataset_file(my_string filename, Classifier_List *class_list) {
+  // Read the number of lines in before opening the files
+  int num_lines = count_lines(filename);
+
+  //From that, it should return some struct
+  FILE *file;
+  if (access(filename.str, F_OK) == -1) {
+    printf("[ERROR] Could not find file");
+  }
+  file = fopen(filename.str, "r");
+
+  //Struct should contain a 2d array with the lines, in each with data separated into array elements
+  char *buffer;
+  buffer = (char*)malloc(sizeof(char) * 1024);
+  fscanf(file, "%s\n", buffer);
+
+  //Count the commas
+  int num_dimensions = count_fields(buffer) - 1;
+
+  //create a Dataset which can hold the rest of the data
+  //dimensionality is the number of fields -1
+  //number of points is the number of lines -1, assuming the last line is a blank line
+  Point *points = (Point*)malloc((num_lines - 1)*sizeof(Point));
+  Dataset return_dataset = {num_dimensions, num_lines - 1, points};
+
+  my_string buffer_string;
+  strcpy(buffer_string.str, buffer);
+
+  int i = 0;
+  //For each line, parse the point and add it to the dataset
+  do {
+    points[i] = parse_point(buffer_string, num_dimensions, class_list);
+
+    i++;
+    //Don't do this on the last iteration of the loop
+    if (!(i == num_lines - 1)) {
+      fscanf(file, "%s\n", buffer);
+      strcpy(buffer_string.str, buffer);
+    }
+  } while (i < num_lines - 1);
+
+  // Now we can essentially read in the first "count" fields and cast to float
+  // Read in the last field, IE count and add a class for the
+  free(buffer);
+  return return_dataset;
+}
+
+Classifier_List new_classifier_list() {
+  int num_categories = 0;
+  my_string *categories;
+  categories = malloc(sizeof(my_string));
+  Classifier_List new_list = {categories, num_categories};
+  return new_list;
+}
+
 #ifndef NDEBUG
 //Definitions required for the testrunner
 GREATEST_MAIN_DEFS();
@@ -365,17 +548,21 @@ int main (int argc, char **argv) {
     GREATEST_MAIN_END();
   #endif
 
-  Classifier_List classes = read_classes_user();
-  print_classes(classes);
+  Classifier_List class_list = new_classifier_list();
+  my_string filename = {"flowers.csv"};
+  read_dataset_file(filename, &class_list);
 
-
-  Dataset kicks = read_dataset_user(classes.num_categories);
-  print_dataset(&kicks);
-
-  Comparison_Point compare = read_comparison_point_user(kicks.dimensionality);
-
-  printf("Classified as: %s", classify(classes, knn_search(3, compare, &kicks)).str);
-
-  free(classes.categories);
+  // Classifier_List classes = read_classes_user();
+  // print_classes(classes);
+  //
+  //
+  // Dataset kicks = read_dataset_user(classes.num_categories);
+  // print_dataset(&kicks);
+  //
+  // Comparison_Point compare = read_comparison_point_user(kicks.dimensionality);
+  //
+  // printf("Classified as: %s", classify(classes, knn_search(3, compare, &kicks)).str);
+  //
+  // free(classes.categories);
   return 0;
 }

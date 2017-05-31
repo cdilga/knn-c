@@ -207,6 +207,91 @@ TEST classify_int(void) {
   free(flower_map.categories);
 }
 
+TEST extract_field_1(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "1.1, 1.2, 1.3, 1.4");
+
+  ASSERT_STR_EQ("1.1", extract_field(test_line, 1).str);
+  PASS();
+}
+
+TEST extract_field_4(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "1.1, 1.2, 1.3, 1.4");
+
+  ASSERT_STR_EQ("1.4", extract_field(test_line, 4).str);
+  PASS();
+}
+
+TEST extract_field_different_formatting(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "1.1,,,''1.2,three, 6");
+
+  ASSERT_STR_EQ("three", extract_field(test_line, 3).str);
+  PASS();
+}
+
+TEST extract_flower_field(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "5.1,3.5,1.4,0.2,Iris-setosa");
+
+  ASSERT_STR_EQ("Iris-setosa", extract_field(test_line, 5).str);
+  PASS();
+}
+
+TEST field_2(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "5.1,3.5,1.4,0.2,Iris-setosa");
+
+  ASSERT_STR_EQ("3.5", extract_field(test_line, 2).str);
+  PASS();
+}
+
+TEST out_of_bounds(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "5.1,3.5,1.4,0.2,Iris-setosa");
+
+  ASSERT_STR_EQ("\0", extract_field(test_line, 6).str);
+  PASS();
+}
+
+TEST gets_class_int(void) {
+  //Pass in a string, with a class_list which contains it, see if the correct value is returned
+  my_string strings[4] = {{"mycategory1"}, {"mycategory2"}, {"mycategory3"}, {"mycategory4"}};
+  Classifier_List class_list = {strings, 4};
+  ASSERT_EQ(0, get_class_num(class_list.categories[0], &class_list));
+
+  PASS();
+}
+
+TEST initialise_category(void) {
+  Classifier_List new_list = new_classifier_list();
+  strcpy(new_list.categories[0].str, "Testing Category");
+
+  ASSERT_EQ(0, new_list.num_categories);
+  PASS();
+}
+
+TEST create_first_category(void) {
+  //Pass in a string, with a class_list which contains it, see if the correct value is returned
+  my_string first_class = {"Test Category"};
+  my_string strings[] = {};
+  Classifier_List class_list = {strings, 0};
+  ASSERT_EQ(0, get_class_num(first_class, &class_list));
+  ASSERT_STR_EQ(first_class.str, class_list.categories[0].str);
+
+  PASS();
+}
+
+
+//Test that the correct number is returned after a call to the string is passed to the classifier
+
 /* Suites can group multiple tests with common setup. */
 SUITE(external_suite) {
     RUN_TEST(distance_1_dimension);
@@ -228,6 +313,17 @@ SUITE(external_suite) {
     RUN_TEST(find_1_nearest_neighbour);
     RUN_TEST(find_3_nearest_neighbour);
 
+    RUN_TEST(extract_field_1);
+    RUN_TEST(extract_field_4);
+    RUN_TEST(extract_field_different_formatting);
+    RUN_TEST(extract_flower_field);
+    RUN_TEST(field_2);
+    RUN_TEST(out_of_bounds);
+
+    //Testing the configuration manager
+    RUN_TEST(gets_class_int);
+    RUN_TEST(initialise_category);
+    RUN_TEST(create_first_category);
 }
 
 /* Add definitions that need to be in the test runner's main file. */
