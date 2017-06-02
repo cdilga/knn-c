@@ -379,7 +379,10 @@ int get_class_num(my_string in_string, Classifier_List *class_list) {
   //Check to see if any of the strings are present in the classifier list
   //Could improve with a Levenshtein Distance calculation to account for human errors
   //Also, if i is zero, we won't even need to check ifit's in there, we know it's not
+  #ifdef DEBUG
   printf("class_list->num_categories: %d\n", class_list->num_categories);
+  #endif
+
   for (int i = 0; i < class_list->num_categories; i++) {
     if (strcmp(class_list->categories[i].str, in_string.str) == 0) {
       return i;
@@ -388,7 +391,9 @@ int get_class_num(my_string in_string, Classifier_List *class_list) {
   //If it isn't present in the existing array, we need to add it in.
   //Increment the count of categories
   class_list->num_categories++;
-
+  #ifdef DEBUG
+  printf("%d\n", class_list->num_categories);
+  #endif
   class_list->categories = realloc(class_list->categories, sizeof(my_string) * class_list->num_categories);
   class_list->categories[class_list->num_categories - 1] = in_string;
   return 0;
