@@ -15,7 +15,7 @@
 SUITE_EXTERN(external_suite);
 
 //Define the debug level. Outputs verbose output if enabled.
-// #define DEBUG
+#define DEBUG
 
 //Datatype allows classifications to be stored very efficiently
 //Is an array of char *, which is a double char *
@@ -392,11 +392,11 @@ int get_class_num(my_string in_string, Classifier_List *class_list) {
   //Increment the count of categories
   class_list->num_categories++;
   #ifdef DEBUG
-  printf("%d\n", class_list->num_categories);
+  printf("Class list categories: %d\n", class_list->num_categories);
   #endif
   class_list->categories = realloc(class_list->categories, sizeof(my_string) * class_list->num_categories);
   class_list->categories[class_list->num_categories - 1] = in_string;
-  return 0;
+  return class_list->num_categories - 1;
 }
 
 //Function to read lines from CSV
