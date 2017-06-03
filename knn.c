@@ -380,7 +380,7 @@ int get_class_num(my_string in_string, Classifier_List *class_list) {
   //Could improve with a Levenshtein Distance calculation to account for human errors
   //Also, if i is zero, we won't even need to check ifit's in there, we know it's not
   #ifdef DEBUG
-  printf("class_list->num_categories: %d\n", class_list->num_categories);
+  printf("[DEBUG] class_list->num_categories: %d\n", class_list->num_categories);
   #endif
 
   for (int i = 0; i < class_list->num_categories; i++) {
@@ -392,7 +392,7 @@ int get_class_num(my_string in_string, Classifier_List *class_list) {
   //Increment the count of categories
   class_list->num_categories++;
   #ifdef DEBUG
-  printf("Class list categories: %d\n", class_list->num_categories);
+  printf("[DEBUG] Class list categories: %d\n", class_list->num_categories);
   #endif
   class_list->categories = realloc(class_list->categories, sizeof(my_string) * class_list->num_categories);
   class_list->categories[class_list->num_categories - 1] = in_string;
@@ -416,12 +416,12 @@ my_string extract_field(my_string line, int field) {
   //Return that value of the token
   for (int i = 1; i < field; i++) {
     #ifdef DEBUG
-    printf("Token is:  %s\n", token);
+    printf("[DEBUG] Token is:  %s\n", token);
     #endif
 
     token = strtok(NULL, " ,");
     #ifdef DEBUG
-    printf("Before copy in loop\n");
+    printf("[DEBUG] Before copy in loop\n");
     #endif
   }
   strncpy(return_value.str, token, sizeof(return_value.str));
