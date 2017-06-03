@@ -8,6 +8,8 @@
 #include <assert.h>
 #include "greatest.h"
 
+#include "heatmap.h"
+
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
@@ -15,7 +17,7 @@
 SUITE_EXTERN(external_suite);
 
 //Define the debug level. Outputs verbose output if enabled.
-#define DEBUG
+// #define DEBUG
 
 //Datatype allows classifications to be stored very efficiently
 //Is an array of char *, which is a double char *
@@ -462,8 +464,6 @@ Point parse_point(my_string line, int num_dimensions, Classifier_List *class_lis
   for (int i = 0; i < num_dimensions; i++) {
     //Go through and pull out the first num fields, and construct a point out of them
     // pass the string into a function that just mocks out and returns 1
-
-
     //Since the extract_field function extracts with a base 1, rather than base of 0
     dimensions[i] = atof(extract_field(line, i + 1).str);
   }
@@ -554,20 +554,14 @@ int main (int argc, char **argv) {
   #endif
 
   Classifier_List class_list = new_classifier_list();
-  my_string filename = {"flowers.csv"};
-  read_dataset_file(filename, &class_list);
 
-  // Classifier_List classes = read_classes_user();
-  // print_classes(classes);
-  //
-  //
-  // Dataset kicks = read_dataset_user(classes.num_categories);
-  // print_dataset(&kicks);
-  //
-  // Comparison_Point compare = read_comparison_point_user(kicks.dimensionality);
-  //
-  // printf("Classified as: %s", classify(classes, knn_search(3, compare, &kicks)).str);
-  //
-  // free(classes.categories);
+  my_string filename = {"flowers.csv"};
+  Dataset generic_dataset = read_dataset_file(filename, &class_list);
+
+  Comparison_Point compare = read_comparison_point_user(generic_dataset.dimensionality);
+  int k = read_integer("k: ");
+
+  printf("Point classified as: %s", classify(class_list, knn_search(k, compare, &generic_dataset)).str);
+
   return 0;
 }

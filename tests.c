@@ -183,7 +183,6 @@ TEST find_3_nearest_neighbour(void) {
   Comparison_Point compare = {comparison_dimensions, NULL};
 
   int category = knn_search(k, compare, &point_dataset);
-  printf("Category: %d\n", category);
 
   //One point to compare to the rest
   ASSERT_EQ(1, category);
@@ -291,15 +290,19 @@ TEST create_first_category(void) {
 
 TEST create_new_category(void) {
   //Pass in a string, with a class_list which contains it, see if the correct value is returned
-  my_string strings[3] = {{"mycategory1"}, {"mycategory2"}, {"mycategory3"}};
-  Classifier_List class_list;
-  class_list.num_categories = 3;
-  class_list.categories = strings;
-  my_string new_category = {"mycategory4"};
-  print_classes(class_list);
-  ASSERT_EQ(5, get_class_num(new_category, &class_list));
+  my_string first_class = {"Test Category"};
+  my_string second_class = {"Class2"};
 
-  // ASSERT_STR_EQ("mycategory5", class_list.categories[5].str);
+  Classifier_List class_list = new_classifier_list();
+  ASSERT_EQ(0, get_class_num(first_class, &class_list));
+  ASSERT_STR_EQ(first_class.str, class_list.categories[0].str);
+
+  ASSERT_EQ(1, get_class_num(second_class, &class_list));
+  ASSERT_STR_EQ(second_class.str, class_list.categories[1].str);
+
+  #ifdef DEBUG
+  print_classes(class_list);
+  #endif
 
   PASS();
 }
@@ -339,7 +342,7 @@ SUITE(external_suite) {
     RUN_TEST(gets_class_int);
     RUN_TEST(initialise_category);
     RUN_TEST(create_first_category);
-    //RUN_TEST(create_new_category);
+    RUN_TEST(create_new_category);
 }
 
 /* Add definitions that need to be in the test runner's main file. */
