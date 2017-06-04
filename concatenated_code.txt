@@ -566,18 +566,26 @@ int main (int argc, char **argv) {
 
   Classifier_List class_list = new_classifier_list();
 
-  my_string filename = {"flowers.csv"};
-  Dataset generic_dataset = read_dataset_file(filename, &class_list);
+  my_string filename = read_string("Filename: ");
 
-  Comparison_Point compare = read_comparison_point_user(generic_dataset.dimensionality);
-  int k = read_integer("k: ");
-  int category = knn_search(k, compare, &generic_dataset);
-  free(compare.neighbour);
-  #ifdef DEBUG
-  printf("[DEBUG] Category is: %d\n", category);
-  #endif
-  my_string class = classify(class_list, category);
-  printf("Point classified as: %s", class.str);
+  Dataset generic_dataset = read_dataset_file(filename, &class_list);
+  bool another_point = true;
+  do {
+    Comparison_Point compare = read_comparison_point_user(generic_dataset.dimensionality);
+    int k = read_integer("k: ");
+    int category = knn_search(k, compare, &generic_dataset);
+    free(compare.neighbour);
+
+    #ifdef DEBUG
+    printf("[DEBUG] Category is: %d\n", category);
+    #endif
+
+    my_string class = classify(class_list, category);
+    printf("Point classified as: %s\n", class.str);
+    another_point = read_boolean("Classfy another point? ");
+  } while(another_point);
+
+
 
   return 0;
 }
