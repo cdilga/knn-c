@@ -8,8 +8,6 @@
 #include <assert.h>
 #include "greatest.h"
 
-#include "heatmap.h"
-
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
@@ -171,18 +169,22 @@ int mode(int *values, int num_values) {
 int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
   //Warn if k is even
   if (k % 2 == 0) {
-    printf("[DEBUG] Warning: %d is even. Tie cases have undefined behviour\n", k);
+    printf("[WARN] Warning: %d is even. Tie cases have undefined behviour\n", k);
   }
 
   //create an array the length of k to put all of the compared points in
+  //This should only have to take care of the top 3 points...
+  //Somehow I've implemented something completely different and it currently takes all of the points???? WHYYYYYY???
   compare.neighbour = (Point_Neighbour_Relationship*)malloc(k*sizeof(Point_Neighbour_Relationship));
-  //Initialise everything to 0/null so that we can tell if it's been changed.
+  //For the first k points, just add whatever junk into the array. This way we can just update the largest.
   for (int i = 0; i < k; i++) {
-    compare.neighbour[i] = (Point_Neighbour_Relationship){0, NULL};
+    float distance = point_distance(compare, datapoints->points[i], datapoints->dimensionality);
+    compare.neighbour[i].distance = distance;
+    compare.neighbour[i].neighbour_pointer = datapoints->points+i;
   }
 
   //Get the euclidean distance to every neighbour,
-  for (int i = 0; i < datapoints->num_points; i++) {
+  for (int i = k; i < datapoints->num_points; i++) {
     float distance = point_distance(compare, datapoints->points[i], datapoints->dimensionality);
 
     #ifdef DEBUG
@@ -194,52 +196,61 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
     float max = 0;
     int update_index = 0;
     for (int j = 0; j < k; j++) {
-      if (compare.neighbour[j].neighbour_pointer == NULL) {
+      if (compare.neighbour[j].distance > max) {
         max = compare.neighbour[j].distance;
         update_index = j;
-      } else if (compare.neighbour[j].distance > max) {
-        max = compare.neighbour[j].distance;
-        update_index = j;
-
-        #ifdef DEBUG
-        printf("[DEBUG] update_index: %d\nNeighbour Distance: %lf\n", j, compare.neighbour[j].distance);
-        #endif
       }
-    }
-
-    //if the current point distance is less than the largest recorded distance, or if the distances haven't been set
-    if (compare.neighbour[update_index].neighbour_pointer == NULL || compare.neighbour[update_index].distance > distance) {
-      //Update the distance at update_index
       #ifdef DEBUG
-      printf("[DEBUG] Neighbour number: %d is null, updating pointer\n", i);
+      printf("[DEBUG] Distance[%d]: %lf\n", j, compare.neighbour[j].distance);
       #endif
-      compare.neighbour[i].distance = distance;
-      compare.neighbour[i].neighbour_pointer = datapoints->points+i;
     }
     #ifdef DEBUG
-    printf("=========================================\n");
+    printf("[DEBUG] update_index max distance identified to be: %d at distance: %lf\n", update_index, compare.neighbour[update_index].distance);
+    #endif
+
+    //if the current point distance is less than the largest recorded distance, or if the distances haven't been set
+    if (compare.neighbour[update_index].distance > distance) {
+      //Update the distance at update_index
+      #ifdef DEBUG
+      //printf("[DEBUG] Neighbour number: %d is either null or distance is shorter, updating pointer\n", i);
+      printf("[DEBUG] Compare neighbour[%d] = %lf\n", update_index, distance);
+      #endif
+      compare.neighbour[update_index].distance = distance;
+
+      //compare.neighbour[i].neighbour_pointer = &datapoints->points[i];
+      compare.neighbour[update_index].neighbour_pointer = datapoints->points+i;
+
+      #ifdef DEBUG
+      printf("[DEBUG] category of new point: %d\n", datapoints->points[i].category);
+      #endif
+    }
+    #ifdef DEBUG
+    printf("==========================================\n");
     #endif
   }
   //Now find the most frequently occurring neighbour pointer type
   //first get all the neighbour pointer categories and put them into a neighbour list
   int neighbour_categories[k];
 
-  for (int i = 0; i < k; i++) {
-    neighbour_categories[i] = compare.neighbour[i].neighbour_pointer->category;
+  for (int c = 0; c < k; c++) {
+    neighbour_categories[c] = compare.neighbour[c].neighbour_pointer->category;
 
     #ifdef DEBUG
     // printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
-    printf("[DEBUG] Category: %d\n", neighbour_categories[i]);
+    printf("[DEBUG] compare.neighbour[%d].distance: %lf\n", c, compare.neighbour[c].distance);
+    printf("[DEBUG] Category[%d]: %d\n", c, neighbour_categories[c]);
     #endif
   }
+
+  #ifdef DEBUG
+  printf("[DEBUG] k is :%d\n", k);
+  #endif
 
   //Find the mode of the categories
   //Call fuction with array of int and the length of the array and return the result
   //printf("mode of categories: %d\n", mode(neighbour_categories, k));
 
-  //TODO fix this memory leak by doing non-dynamic allocation at some point
   return mode(neighbour_categories, k);
-  //free(compare.neighbour);
 }
 
 
@@ -501,7 +512,7 @@ Dataset read_dataset_file(my_string filename, Classifier_List *class_list) {
   //create a Dataset which can hold the rest of the data
   //dimensionality is the number of fields -1
   //number of points is the number of lines -1, assuming the last line is a blank line
-  Point *points = (Point*)malloc((num_lines - 1)*sizeof(Point));
+  Point *points = (Point*)malloc((num_lines-1)*sizeof(Point));
   Dataset return_dataset = {num_dimensions, num_lines - 1, points};
 
   my_string buffer_string;
@@ -560,8 +571,13 @@ int main (int argc, char **argv) {
 
   Comparison_Point compare = read_comparison_point_user(generic_dataset.dimensionality);
   int k = read_integer("k: ");
-
-  printf("Point classified as: %s", classify(class_list, knn_search(k, compare, &generic_dataset)).str);
+  int category = knn_search(k, compare, &generic_dataset);
+  free(compare.neighbour);
+  #ifdef DEBUG
+  printf("[DEBUG] Category is: %d\n", category);
+  #endif
+  my_string class = classify(class_list, category);
+  printf("Point classified as: %s", class.str);
 
   return 0;
 }

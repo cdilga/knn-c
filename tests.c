@@ -148,6 +148,7 @@ TEST find_1_nearest_neighbour(void) {
 
   //One point to compare to the rest
   ASSERT_EQ(category, knn_search(k, compare, &single_point_dataset));
+  free(compare.neighbour);
   PASS();
 }
 
@@ -183,6 +184,7 @@ TEST find_3_nearest_neighbour(void) {
   Comparison_Point compare = {comparison_dimensions, NULL};
 
   int category = knn_search(k, compare, &point_dataset);
+  free(compare.neighbour);
 
   //One point to compare to the rest
   ASSERT_EQ(1, category);

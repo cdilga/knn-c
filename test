@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-test_knn.exe -v | contrib/greenest

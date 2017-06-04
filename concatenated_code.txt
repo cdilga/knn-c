@@ -1,0 +1,2293 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <windows.h>
+#include <math.h>
+#include <unistd.h>
+
+#include <assert.h>
+#include "greatest.h"
+
+#include "file_input_output.h"
+#include "terminal_user_input.h"
+
+//Define a testing suite that is external to reduce code in this file
+SUITE_EXTERN(external_suite);
+
+//Define the debug level. Outputs verbose output if enabled.
+// #define DEBUG
+
+//Datatype allows classifications to be stored very efficiently
+//Is an array of char *, which is a double char *
+//In order to use this struct, you must first define an array of char* on the class
+typedef struct {
+  my_string *categories;
+  int num_categories;
+} Classifier_List;
+
+//Datatype allows to return list of neighbours because you cannont return arrays in c
+typedef struct {
+  int *category;
+} Neighbour_List;
+
+//Datatype is euclidean point
+typedef struct point {
+  float *dimension;
+  //category must be in the categories array
+  int category;
+} Point;
+
+//Dataset holds all of the points
+typedef struct dataset {
+  //d - the dimensionality of the dataset
+  int dimensionality;
+  int num_points;
+  Point* points;
+} Dataset;
+
+//Distance holds the distance from a point, to another point
+typedef struct point_neighbour_relationship {
+  float distance;
+  Point *neighbour_pointer;
+} Point_Neighbour_Relationship;
+
+//Since a comparison point is a distinctly different entity to a data point
+typedef struct comparision_point {
+  float *dimension;
+  Point_Neighbour_Relationship *neighbour;
+} Comparison_Point;
+
+//Apparently C doesn't have boolean types
+typedef enum {
+  false,
+  true
+} bool;
+
+// typedef struct csv_file {
+//   char data[][][255];
+//   int num_line;
+//   int num_fields;
+// } CSV_File;
+
+int knn_pow(int x, int n) {
+  int result = 1;
+  for (int i = 0; i < n - 1; i++) {
+    result = result * x;
+  }
+  return result;
+}
+
+//Distance
+//Return: number with the distance, a float
+//Inputs, euclidean point, x and euclidean point y
+float point_distance(Comparison_Point x, Point y, int dimensions) {
+  float dist = 0;
+
+  float sum = 0;
+
+  //for each element in each, get the squared difference
+  for (int i = 0; i < dimensions; i++) {
+    //sum this squared difference
+    sum = sum + pow(x.dimension[i] - y.dimension[i], 2);
+  }
+
+  //get this sum and find the square root
+  dist = sqrt(sum);
+
+  return dist;
+}
+
+//Compare two integers
+int compare_int(const void *v1, const void *v2) {
+  int n1 = *(int*)v1;
+  int n2 = *(int*)v2;
+  if (n1 - n2 > 1) {
+    return 1;
+  } else if (n1 - n2 < -1) {
+    return -1;
+  }
+  return n1 - n2;
+}
+//if value 1 is greater than value 2, positive,
+//if equal, 0
+//if value 1 less value 2, negative,
+
+//Calculate the mode
+int mode(int *values, int num_values) {
+  //Sort the array
+  int current_counter = 1;
+  int max_count = 1;
+  int max_index = 0;
+  //Count the number of each number
+  qsort(values, num_values, sizeof(int), compare_int);
+  #ifdef DEBUG
+  printf("[DEBUG] Values[%d]: %d\n", 0, values[0]);
+  #endif
+  for (int i = 1; i < num_values; i++) {
+    //if this is the same as teh last
+    if (values[i-1] == values[i]) {
+      //increase the couter
+      current_counter += 1;
+    } else if (current_counter > max_count) {
+      //if the counter is greater than the max counter
+      //set the max counter to counter
+      max_count = current_counter;
+
+      //update the max_index
+      max_index = i - 1;
+      #ifdef DEBUG
+      printf("[DEBUG] Max index updated to %d\n", i - 1);
+      #endif
+
+      //set the couter to 0
+      current_counter = 0;
+    }
+    //If it's the last one, and the loop doesn't go through again
+    if (current_counter > max_count) {
+      //if the counter is greater than the max counter
+      //set the max counter to counter
+      max_count = current_counter;
+
+      //update the max_index
+      max_index = i;
+      #ifdef DEBUG
+      printf("[DEBUG] Max index updated to %d\n", i - 1);
+      #endif
+    }
+
+    //Keep a reference to an instance of the highest counted number in the array
+    #ifdef DEBUG
+    printf("[DEBUG] Values[%d]: %d\n", i, values[i]);
+    #endif
+  }
+
+  return values[max_index];
+}
+
+//Doing a k nearest neighbour search
+
+int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
+  //Warn if k is even
+  if (k % 2 == 0) {
+    printf("[WARN] Warning: %d is even. Tie cases have undefined behviour\n", k);
+  }
+
+  //create an array the length of k to put all of the compared points in
+  //This should only have to take care of the top 3 points...
+  //Somehow I've implemented something completely different and it currently takes all of the points???? WHYYYYYY???
+  compare.neighbour = (Point_Neighbour_Relationship*)malloc(k*sizeof(Point_Neighbour_Relationship));
+  //For the first k points, just add whatever junk into the array. This way we can just update the largest.
+  for (int i = 0; i < k; i++) {
+    float distance = point_distance(compare, datapoints->points[i], datapoints->dimensionality);
+    compare.neighbour[i].distance = distance;
+    compare.neighbour[i].neighbour_pointer = datapoints->points+i;
+  }
+
+  //Get the euclidean distance to every neighbour,
+  for (int i = k; i < datapoints->num_points; i++) {
+    float distance = point_distance(compare, datapoints->points[i], datapoints->dimensionality);
+
+    #ifdef DEBUG
+    printf("[DEBUG] Point distance: %lf\n", distance);
+    #endif
+
+    //if the neighbour is closer than the last, or it's null pointer distance closest keep it in a distance array
+    //loop through all of the values for k, and keep the value from the comparison list for the compare point which is update_index.
+    float max = 0;
+    int update_index = 0;
+    for (int j = 0; j < k; j++) {
+      if (compare.neighbour[j].distance > max) {
+        max = compare.neighbour[j].distance;
+        update_index = j;
+      }
+      #ifdef DEBUG
+      printf("[DEBUG] Distance[%d]: %lf\n", j, compare.neighbour[j].distance);
+      #endif
+    }
+    #ifdef DEBUG
+    printf("[DEBUG] update_index max distance identified to be: %d at distance: %lf\n", update_index, compare.neighbour[update_index].distance);
+    #endif
+
+    //if the current point distance is less than the largest recorded distance, or if the distances haven't been set
+    if (compare.neighbour[update_index].distance > distance) {
+      //Update the distance at update_index
+      #ifdef DEBUG
+      //printf("[DEBUG] Neighbour number: %d is either null or distance is shorter, updating pointer\n", i);
+      printf("[DEBUG] Compare neighbour[%d] = %lf\n", update_index, distance);
+      #endif
+      compare.neighbour[update_index].distance = distance;
+
+      //compare.neighbour[i].neighbour_pointer = &datapoints->points[i];
+      compare.neighbour[update_index].neighbour_pointer = datapoints->points+i;
+
+      #ifdef DEBUG
+      printf("[DEBUG] category of new point: %d\n", datapoints->points[i].category);
+      #endif
+    }
+    #ifdef DEBUG
+    printf("==========================================\n");
+    #endif
+  }
+  //Now find the most frequently occurring neighbour pointer type
+  //first get all the neighbour pointer categories and put them into a neighbour list
+  int neighbour_categories[k];
+
+  for (int c = 0; c < k; c++) {
+    neighbour_categories[c] = compare.neighbour[c].neighbour_pointer->category;
+
+    #ifdef DEBUG
+    // printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
+    printf("[DEBUG] compare.neighbour[%d].distance: %lf\n", c, compare.neighbour[c].distance);
+    printf("[DEBUG] Category[%d]: %d\n", c, neighbour_categories[c]);
+    #endif
+  }
+
+  #ifdef DEBUG
+  printf("[DEBUG] k is :%d\n", k);
+  #endif
+
+  //Find the mode of the categories
+  //Call fuction with array of int and the length of the array and return the result
+  //printf("mode of categories: %d\n", mode(neighbour_categories, k));
+
+  return mode(neighbour_categories, k);
+}
+
+
+//Function that takes in a classification integer, and returns a classification string
+//Requires a map between the integers and the string in the form of a classification_map datatype
+my_string classify(Classifier_List category_map, int category) {
+  my_string class = category_map.categories[category];
+  return class;
+}
+
+//Function that returns a classifier list read in from file
+//Reads in the labels file, specified in parameters
+//Generates a number of labels, inside of a classifier list and records the number
+//of classifiers in the classifier list
+
+Point read_point_user(int num_dimensions, int num_categories) {
+  Point user_point;
+  user_point.dimension = (float*)malloc(num_dimensions*sizeof(float));
+  for (int i = 0; i < num_dimensions; i++) {
+    printf("%dth dimension: ", i);
+    user_point.dimension[i] = read_float("");
+  }
+  user_point.category = read_integer_range("Enter a category ID: ", 0, num_categories - 1);
+  return user_point;
+}
+
+
+//Passing by reference is less safe, but as a result of the performance increase
+//it is justified
+void print_point(Point *point_arg, int dimensions) {
+  printf("(");
+  int i = 0;
+  do {
+    if (i > 0) {
+      printf(", ");
+    }
+    printf("%lf", point_arg->dimension[i]);
+    i++;
+  } while(i < dimensions);
+  printf(") %d\n", point_arg->category);
+}
+
+//Read in a dataset given the number of categories
+Dataset read_dataset_user(int num_categories) {
+  //Note only good for small datasets. If items are being added for a huge number
+  //this operation would get very expensive. Implemention of a linked list would
+  //potentially be beneficial for this calculation
+  Dataset user_dataset;
+  //Dataset contains
+  //Dimensionality
+  user_dataset.dimensionality = read_integer("Enter the number of dimensions of your classification data: ");
+
+  //Number of points (dynamically updated for UX)
+  user_dataset.num_points = 1;
+  user_dataset.points = (Point*)malloc(sizeof(Point));
+
+  bool enter_another = true;
+  do {
+    user_dataset.points[user_dataset.num_points - 1] = read_point_user(user_dataset.dimensionality, num_categories);
+    enter_another = read_boolean("Enter another? [y/n] ");
+    if (enter_another) {
+      user_dataset.num_points += 1;
+      user_dataset.points = (Point*)realloc(user_dataset.points, user_dataset.num_points*sizeof(Point));
+    } else {
+      break;
+    }
+  } while(enter_another);
+
+  return user_dataset;
+}
+
+//Large dataset shouldn't be copied to support large datasets
+void print_dataset(Dataset *dataset_arg) {
+  printf("Dataset\nDimensionality: %d\nNumber of Points: %d\n", dataset_arg->dimensionality, dataset_arg->num_points);
+  for (int i = 0; i < dataset_arg->num_points; i++) {
+    print_point(dataset_arg->points + i, dataset_arg->dimensionality);
+  }
+}
+
+Classifier_List read_classes_user() {
+  //In future, read string and similar calls could be mocked to allow unit testing
+  //Since the framework already exists for terminal_user input, this could be expanded
+  Classifier_List classes;
+  classes.categories = (my_string*)malloc(sizeof(my_string));
+  classes.num_categories = 1;
+
+  bool enter_another = true;
+  do {
+    classes.categories[classes.num_categories - 1] = read_string("Category name: ");
+    enter_another = read_boolean("Enter another? [y/n] ");
+    if (enter_another) {
+      classes.num_categories += 1;
+      classes.categories = (my_string*)realloc(classes.categories, classes.num_categories*sizeof(my_string));
+    } else {
+      break;
+    }
+  } while(enter_another);
+
+  return classes;
+}
+
+void print_classes(Classifier_List classes) {
+  for (int i = 0; i < classes.num_categories; i++) {
+    printf("Categories: %s\n", classes.categories[i].str);
+  }
+}
+
+Comparison_Point read_comparison_point_user(int num_dimensions) {
+  Comparison_Point user_point;
+  user_point.dimension = (float*)malloc(num_dimensions*sizeof(float));
+  for (int i = 0; i < num_dimensions; i++) {
+    printf("%dth dimension: ", i);
+    user_point.dimension[i] = read_float("");
+  }
+
+  //TODO fix memory allocation
+  return user_point;
+}
+
+int count_fields(char *buffer) {
+  int count = 1;
+  int pos = 0;
+  char current;
+  do {
+    current = buffer[pos];
+    // printf("%c", current);
+    if (current == ',') {
+      count++;
+    }
+    pos++;
+  } while(current != '\n' && current != '\0');
+  #ifdef DEBUG
+  printf("[DEBUG] Number of fields: %d\n", count);
+  #endif
+  return count;
+}
+
+int get_class_num(my_string in_string, Classifier_List *class_list) {
+  //Check to see if any of the strings are present in the classifier list
+  //Could improve with a Levenshtein Distance calculation to account for human errors
+  //Also, if i is zero, we won't even need to check ifit's in there, we know it's not
+  #ifdef DEBUG
+  printf("[DEBUG] class_list->num_categories: %d\n", class_list->num_categories);
+  #endif
+
+  for (int i = 0; i < class_list->num_categories; i++) {
+    if (strcmp(class_list->categories[i].str, in_string.str) == 0) {
+      return i;
+    }
+  }
+  //If it isn't present in the existing array, we need to add it in.
+  //Increment the count of categories
+  class_list->num_categories++;
+  #ifdef DEBUG
+  printf("[DEBUG] Class list categories: %d\n", class_list->num_categories);
+  #endif
+  class_list->categories = realloc(class_list->categories, sizeof(my_string) * class_list->num_categories);
+  class_list->categories[class_list->num_categories - 1] = in_string;
+  return class_list->num_categories - 1;
+}
+
+//Function to read lines from CSV
+//Takes a file name
+my_string extract_field(my_string line, int field) {
+  my_string return_value;
+  //Using https://support.microsoft.com/en-us/help/51327/info-strtok-c-function----documentation-supplement
+  if (field > count_fields(line.str)) {
+    strcpy(return_value.str, "\0");
+    return return_value;
+  }
+  //Potentially unsafe
+  char *token;
+
+  token = strtok(line.str, " ,");
+  //Call strtok "field" times
+  //Return that value of the token
+  for (int i = 1; i < field; i++) {
+    #ifdef DEBUG
+    printf("[DEBUG] Token is:  %s\n", token);
+    #endif
+
+    token = strtok(NULL, " ,");
+    #ifdef DEBUG
+    printf("[DEBUG] Before copy in loop\n");
+    #endif
+  }
+  strncpy(return_value.str, token, sizeof(return_value.str));
+
+  return return_value;
+}
+
+int count_lines(my_string filename) {
+  FILE *file;
+  if (access(filename.str, F_OK) == -1) {
+    printf("[ERROR] Could not find file");
+    return -1;
+  }
+  file = fopen(filename.str, "r");
+  char buffer[1024];
+  int count = 0;
+  while(fgets(buffer, 1024, file)) {
+    count++;
+  }
+  fclose(file);
+  #ifdef DEBUG
+  printf("[DEBUG] Line number is:  %d\n", count);
+  #endif
+  return count;
+}
+
+Dataset new_dataset() {
+  Point *points = {NULL};
+  Dataset new = {0, 0, points};
+  return new;
+}
+
+//function that takes in a line, and returns a point
+//parse point
+//TODO ADD UNIT TESTS!!!
+Point parse_point(my_string line, int num_dimensions, Classifier_List *class_list) {
+  float *dimensions = (float*)malloc(num_dimensions*sizeof(float));
+  for (int i = 0; i < num_dimensions; i++) {
+    //Go through and pull out the first num fields, and construct a point out of them
+    // pass the string into a function that just mocks out and returns 1
+    //Since the extract_field function extracts with a base 1, rather than base of 0
+    dimensions[i] = atof(extract_field(line, i + 1).str);
+  }
+
+  Point curr_point;
+  curr_point.dimension = dimensions;
+
+  //Since the data for the class is one after the
+  curr_point.category = get_class_num(extract_field(line, num_dimensions + 1), class_list);
+  #ifdef DEBUG
+  print_point(&curr_point, num_dimensions);
+  #endif
+  return curr_point;
+}
+
+Dataset read_dataset_file(my_string filename, Classifier_List *class_list) {
+  // Read the number of lines in before opening the files
+  int num_lines = count_lines(filename);
+
+  //From that, it should return some struct
+  FILE *file;
+  if (access(filename.str, F_OK) == -1) {
+    printf("[ERROR] Could not find file");
+  }
+  file = fopen(filename.str, "r");
+
+  //Struct should contain a 2d array with the lines, in each with data separated into array elements
+  char *buffer;
+  buffer = (char*)malloc(sizeof(char) * 1024);
+  fscanf(file, "%s\n", buffer);
+
+  //Count the commas
+  int num_dimensions = count_fields(buffer) - 1;
+
+  //create a Dataset which can hold the rest of the data
+  //dimensionality is the number of fields -1
+  //number of points is the number of lines -1, assuming the last line is a blank line
+  Point *points = (Point*)malloc((num_lines-1)*sizeof(Point));
+  Dataset return_dataset = {num_dimensions, num_lines - 1, points};
+
+  my_string buffer_string;
+  strcpy(buffer_string.str, buffer);
+
+  int i = 0;
+  //For each line, parse the point and add it to the dataset
+  do {
+    points[i] = parse_point(buffer_string, num_dimensions, class_list);
+
+    i++;
+    //Don't do this on the last iteration of the loop
+    if (!(i == num_lines - 1)) {
+      fscanf(file, "%s\n", buffer);
+      strcpy(buffer_string.str, buffer);
+    }
+  } while (i < num_lines - 1);
+
+  // Now we can essentially read in the first "count" fields and cast to float
+  // Read in the last field, IE count and add a class for the
+  free(buffer);
+  return return_dataset;
+}
+
+Classifier_List new_classifier_list() {
+  int num_categories = 0;
+  my_string *categories;
+  categories = malloc(sizeof(my_string));
+  Classifier_List new_list = {categories, num_categories};
+  return new_list;
+}
+
+#ifndef NDEBUG
+//Definitions required for the testrunner
+GREATEST_MAIN_DEFS();
+#endif
+
+//This main function takes commandline arguments
+int main (int argc, char **argv) {
+  //Wrapped in #ifndef so we can make a release version
+  #ifndef NDEBUG
+  //Setup required testing
+    GREATEST_MAIN_BEGIN();
+
+    //Runs tests from external file specified above
+    RUN_SUITE(external_suite);
+
+    //Show results of the testing
+    GREATEST_MAIN_END();
+  #endif
+
+  Classifier_List class_list = new_classifier_list();
+
+  my_string filename = {"flowers.csv"};
+  Dataset generic_dataset = read_dataset_file(filename, &class_list);
+
+  Comparison_Point compare = read_comparison_point_user(generic_dataset.dimensionality);
+  int k = read_integer("k: ");
+  int category = knn_search(k, compare, &generic_dataset);
+  free(compare.neighbour);
+  #ifdef DEBUG
+  printf("[DEBUG] Category is: %d\n", category);
+  #endif
+  my_string class = classify(class_list, category);
+  printf("Point classified as: %s", class.str);
+
+  return 0;
+}
+/*
+ * Copyright (c) 2011-2016 Scott Vokes <vokes.s@gmail.com>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+#ifndef GREATEST_H
+#define GREATEST_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* 1.2.2 */
+#define GREATEST_VERSION_MAJOR 1
+#define GREATEST_VERSION_MINOR 2
+#define GREATEST_VERSION_PATCH 2
+
+/* A unit testing system for C, contained in 1 file.
+ * It doesn't use dynamic allocation or depend on anything
+ * beyond ANSI C89.
+ *
+ * An up-to-date version can be found at:
+ *     https://github.com/silentbicycle/greatest/
+ */
+
+
+/*********************************************************************
+ * Minimal test runner template
+ *********************************************************************/
+#if 0
+
+#include "greatest.h"
+
+TEST foo_should_foo(void) {
+    PASS();
+}
+
+static void setup_cb(void *data) {
+    printf("setup callback for each test case\n");
+}
+
+static void teardown_cb(void *data) {
+    printf("teardown callback for each test case\n");
+}
+
+SUITE(suite) {
+    /* Optional setup/teardown callbacks which will be run before/after
+     * every test case. If using a test suite, they will be cleared when
+     * the suite finishes. */
+    SET_SETUP(setup_cb, voidp_to_callback_data);
+    SET_TEARDOWN(teardown_cb, voidp_to_callback_data);
+
+    RUN_TEST(foo_should_foo);
+}
+
+/* Add definitions that need to be in the test runner's main file. */
+GREATEST_MAIN_DEFS();
+
+/* Set up, run suite(s) of tests, report pass/fail/skip stats. */
+int run_tests(void) {
+    GREATEST_INIT();            /* init. greatest internals */
+    /* List of suites to run (if any). */
+    RUN_SUITE(suite);
+
+    /* Tests can also be run directly, without using test suites. */
+    RUN_TEST(foo_should_foo);
+
+    GREATEST_PRINT_REPORT();          /* display results */
+    return greatest_all_passed();
+}
+
+/* main(), for a standalone command-line test runner.
+ * This replaces run_tests above, and adds command line option
+ * handling and exiting with a pass/fail status. */
+int main(int argc, char **argv) {
+    GREATEST_MAIN_BEGIN();      /* init & parse command-line args */
+    RUN_SUITE(suite);
+    GREATEST_MAIN_END();        /* display results */
+}
+
+#endif
+/*********************************************************************/
+
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+/***********
+ * Options *
+ ***********/
+
+/* Default column width for non-verbose output. */
+#ifndef GREATEST_DEFAULT_WIDTH
+#define GREATEST_DEFAULT_WIDTH 72
+#endif
+
+/* FILE *, for test logging. */
+#ifndef GREATEST_STDOUT
+#define GREATEST_STDOUT stdout
+#endif
+
+/* Remove GREATEST_ prefix from most commonly used symbols? */
+#ifndef GREATEST_USE_ABBREVS
+#define GREATEST_USE_ABBREVS 1
+#endif
+
+/* Set to 0 to disable all use of setjmp/longjmp. */
+#ifndef GREATEST_USE_LONGJMP
+#define GREATEST_USE_LONGJMP 1
+#endif
+
+#if GREATEST_USE_LONGJMP
+#include <setjmp.h>
+#endif
+
+/* Set to 0 to disable all use of time.h / clock(). */
+#ifndef GREATEST_USE_TIME
+#define GREATEST_USE_TIME 1
+#endif
+
+#if GREATEST_USE_TIME
+#include <time.h>
+#endif
+
+/* Floating point type, for ASSERT_IN_RANGE. */
+#ifndef GREATEST_FLOAT
+#define GREATEST_FLOAT double
+#define GREATEST_FLOAT_FMT "%g"
+#endif
+
+/*********
+ * Types *
+ *********/
+
+/* Info for the current running suite. */
+typedef struct greatest_suite_info {
+    unsigned int tests_run;
+    unsigned int passed;
+    unsigned int failed;
+    unsigned int skipped;
+
+#if GREATEST_USE_TIME
+    /* timers, pre/post running suite and individual tests */
+    clock_t pre_suite;
+    clock_t post_suite;
+    clock_t pre_test;
+    clock_t post_test;
+#endif
+} greatest_suite_info;
+
+/* Type for a suite function. */
+typedef void (greatest_suite_cb)(void);
+
+/* Types for setup/teardown callbacks. If non-NULL, these will be run
+ * and passed the pointer to their additional data. */
+typedef void (greatest_setup_cb)(void *udata);
+typedef void (greatest_teardown_cb)(void *udata);
+
+/* Type for an equality comparison between two pointers of the same type.
+ * Should return non-0 if equal, otherwise 0.
+ * UDATA is a closure value, passed through from ASSERT_EQUAL_T[m]. */
+typedef int greatest_equal_cb(const void *exp, const void *got, void *udata);
+
+/* Type for a callback that prints a value pointed to by T.
+ * Return value has the same meaning as printf's.
+ * UDATA is a closure value, passed through from ASSERT_EQUAL_T[m]. */
+typedef int greatest_printf_cb(const void *t, void *udata);
+
+/* Callbacks for an arbitrary type; needed for type-specific
+ * comparisons via GREATEST_ASSERT_EQUAL_T[m].*/
+typedef struct greatest_type_info {
+    greatest_equal_cb *equal;
+    greatest_printf_cb *print;
+} greatest_type_info;
+
+typedef struct greatest_memory_cmp_env {
+    const unsigned char *exp;
+    const unsigned char *got;
+    size_t size;
+} greatest_memory_cmp_env;
+
+/* Callbacks for string and raw memory types. */
+extern greatest_type_info greatest_type_info_string;
+extern greatest_type_info greatest_type_info_memory;
+
+typedef enum {
+    GREATEST_FLAG_FIRST_FAIL = 0x01,
+    GREATEST_FLAG_LIST_ONLY = 0x02
+} greatest_flag_t;
+
+/* Struct containing all test runner state. */
+typedef struct greatest_run_info {
+    unsigned char flags;
+    unsigned char verbosity;
+    unsigned char pad_0[2];
+
+    unsigned int tests_run;     /* total test count */
+
+    /* currently running test suite */
+    greatest_suite_info suite;
+
+    /* overall pass/fail/skip counts */
+    unsigned int passed;
+    unsigned int failed;
+    unsigned int skipped;
+    unsigned int assertions;
+
+    /* info to print about the most recent failure */
+    unsigned int fail_line;
+    unsigned int pad_1;
+    const char *fail_file;
+    const char *msg;
+
+    /* current setup/teardown hooks and userdata */
+    greatest_setup_cb *setup;
+    void *setup_udata;
+    greatest_teardown_cb *teardown;
+    void *teardown_udata;
+
+    /* formatting info for ".....s...F"-style output */
+    unsigned int col;
+    unsigned int width;
+
+    /* only run a specific suite or test */
+    const char *suite_filter;
+    const char *test_filter;
+
+#if GREATEST_USE_TIME
+    /* overall timers */
+    clock_t begin;
+    clock_t end;
+#endif
+
+#if GREATEST_USE_LONGJMP
+    int pad_jmp_buf;
+    jmp_buf jump_dest;
+#endif
+} greatest_run_info;
+
+struct greatest_report_t {
+    /* overall pass/fail/skip counts */
+    unsigned int passed;
+    unsigned int failed;
+    unsigned int skipped;
+    unsigned int assertions;
+};
+
+/* Global var for the current testing context.
+ * Initialized by GREATEST_MAIN_DEFS(). */
+extern greatest_run_info greatest_info;
+
+/* Type for ASSERT_ENUM_EQ's ENUM_STR argument. */
+typedef const char *greatest_enum_str_fun(int value);
+
+/**********************
+ * Exported functions *
+ **********************/
+
+/* These are used internally by greatest. */
+void greatest_do_pass(const char *name);
+void greatest_do_fail(const char *name);
+void greatest_do_skip(const char *name);
+int greatest_pre_test(const char *name);
+void greatest_post_test(const char *name, int res);
+void greatest_usage(const char *name);
+int greatest_do_assert_equal_t(const void *exp, const void *got,
+    greatest_type_info *type_info, void *udata);
+
+/* These are part of the public greatest API. */
+void GREATEST_SET_SETUP_CB(greatest_setup_cb *cb, void *udata);
+void GREATEST_SET_TEARDOWN_CB(greatest_teardown_cb *cb, void *udata);
+int greatest_all_passed(void);
+void greatest_set_test_filter(const char *name);
+void greatest_set_suite_filter(const char *name);
+void greatest_get_report(struct greatest_report_t *report);
+unsigned int greatest_get_verbosity(void);
+void greatest_set_verbosity(unsigned int verbosity);
+void greatest_set_flag(greatest_flag_t flag);
+
+
+/********************
+* Language Support *
+********************/
+
+/* If __VA_ARGS__ (C99) is supported, allow parametric testing
+* without needing to manually manage the argument struct. */
+#if __STDC_VERSION__ >= 19901L || _MSC_VER >= 1800
+#define GREATEST_VA_ARGS
+#endif
+
+
+/**********
+ * Macros *
+ **********/
+
+/* Define a suite. */
+#define GREATEST_SUITE(NAME) void NAME(void); void NAME(void)
+
+/* Declare a suite, provided by another compilation unit. */
+#define GREATEST_SUITE_EXTERN(NAME) void NAME(void)
+
+/* Start defining a test function.
+ * The arguments are not included, to allow parametric testing. */
+#define GREATEST_TEST static enum greatest_test_res
+
+/* PASS/FAIL/SKIP result from a test. Used internally. */
+typedef enum greatest_test_res {
+    GREATEST_TEST_RES_PASS = 0,
+    GREATEST_TEST_RES_FAIL = -1,
+    GREATEST_TEST_RES_SKIP = 1
+} greatest_test_res;
+
+/* Run a suite. */
+#define GREATEST_RUN_SUITE(S_NAME) greatest_run_suite(S_NAME, #S_NAME)
+
+/* Run a test in the current suite. */
+#define GREATEST_RUN_TEST(TEST)                                         \
+    do {                                                                \
+        if (greatest_pre_test(#TEST) == 1) {                            \
+            enum greatest_test_res res = GREATEST_SAVE_CONTEXT();       \
+            if (res == GREATEST_TEST_RES_PASS) {                        \
+                res = TEST();                                           \
+            }                                                           \
+            greatest_post_test(#TEST, res);                             \
+        } else if (GREATEST_LIST_ONLY()) {                              \
+            fprintf(GREATEST_STDOUT, "  %s\n", #TEST);                  \
+        }                                                               \
+    } while (0)
+
+/* Ignore a test, don't warn about it being unused. */
+#define GREATEST_IGNORE_TEST(TEST) (void)TEST
+
+/* Run a test in the current suite with one void * argument,
+ * which can be a pointer to a struct with multiple arguments. */
+#define GREATEST_RUN_TEST1(TEST, ENV)                                   \
+    do {                                                                \
+        if (greatest_pre_test(#TEST) == 1) {                            \
+            int res = TEST(ENV);                                        \
+            greatest_post_test(#TEST, res);                             \
+        } else if (GREATEST_LIST_ONLY()) {                              \
+            fprintf(GREATEST_STDOUT, "  %s\n", #TEST);                  \
+        }                                                               \
+    } while (0)
+
+#ifdef GREATEST_VA_ARGS
+#define GREATEST_RUN_TESTp(TEST, ...)                                   \
+    do {                                                                \
+        if (greatest_pre_test(#TEST) == 1) {                            \
+            int res = TEST(__VA_ARGS__);                                \
+            greatest_post_test(#TEST, res);                             \
+        } else if (GREATEST_LIST_ONLY()) {                              \
+            fprintf(GREATEST_STDOUT, "  %s\n", #TEST);                  \
+        }                                                               \
+    } while (0)
+#endif
+
+
+/* Check if the test runner is in verbose mode. */
+#define GREATEST_IS_VERBOSE() ((greatest_info.verbosity) > 0)
+#define GREATEST_LIST_ONLY()                                            \
+    (greatest_info.flags & GREATEST_FLAG_LIST_ONLY)
+#define GREATEST_FIRST_FAIL()                                           \
+    (greatest_info.flags & GREATEST_FLAG_FIRST_FAIL)
+#define GREATEST_FAILURE_ABORT()                                        \
+    (greatest_info.suite.failed > 0 && GREATEST_FIRST_FAIL())
+
+/* Message-less forms of tests defined below. */
+#define GREATEST_PASS() GREATEST_PASSm(NULL)
+#define GREATEST_FAIL() GREATEST_FAILm(NULL)
+#define GREATEST_SKIP() GREATEST_SKIPm(NULL)
+#define GREATEST_ASSERT(COND)                                           \
+    GREATEST_ASSERTm(#COND, COND)
+#define GREATEST_ASSERT_OR_LONGJMP(COND)                                \
+    GREATEST_ASSERT_OR_LONGJMPm(#COND, COND)
+#define GREATEST_ASSERT_FALSE(COND)                                     \
+    GREATEST_ASSERT_FALSEm(#COND, COND)
+#define GREATEST_ASSERT_EQ(EXP, GOT)                                    \
+    GREATEST_ASSERT_EQm(#EXP " != " #GOT, EXP, GOT)
+#define GREATEST_ASSERT_EQ_FMT(EXP, GOT, FMT)                           \
+    GREATEST_ASSERT_EQ_FMTm(#EXP " != " #GOT, EXP, GOT, FMT)
+#define GREATEST_ASSERT_IN_RANGE(EXP, GOT, TOL)                         \
+    GREATEST_ASSERT_IN_RANGEm(#EXP " != " #GOT " +/- " #TOL, EXP, GOT, TOL)
+#define GREATEST_ASSERT_EQUAL_T(EXP, GOT, TYPE_INFO, UDATA)             \
+    GREATEST_ASSERT_EQUAL_Tm(#EXP " != " #GOT, EXP, GOT, TYPE_INFO, UDATA)
+#define GREATEST_ASSERT_STR_EQ(EXP, GOT)                                \
+    GREATEST_ASSERT_STR_EQm(#EXP " != " #GOT, EXP, GOT)
+#define GREATEST_ASSERT_STRN_EQ(EXP, GOT, SIZE)                         \
+    GREATEST_ASSERT_STRN_EQm(#EXP " != " #GOT, EXP, GOT, SIZE)
+#define GREATEST_ASSERT_MEM_EQ(EXP, GOT, SIZE)                          \
+    GREATEST_ASSERT_MEM_EQm(#EXP " != " #GOT, EXP, GOT, SIZE)
+#define GREATEST_ASSERT_ENUM_EQ(EXP, GOT, ENUM_STR)                     \
+    GREATEST_ASSERT_ENUM_EQm(#EXP " != " #GOT, EXP, GOT, ENUM_STR)
+
+/* The following forms take an additional message argument first,
+ * to be displayed by the test runner. */
+
+/* Fail if a condition is not true, with message. */
+#define GREATEST_ASSERTm(MSG, COND)                                     \
+    do {                                                                \
+        greatest_info.assertions++;                                     \
+        if (!(COND)) { GREATEST_FAILm(MSG); }                           \
+    } while (0)
+
+/* Fail if a condition is not true, longjmping out of test. */
+#define GREATEST_ASSERT_OR_LONGJMPm(MSG, COND)                          \
+    do {                                                                \
+        greatest_info.assertions++;                                     \
+        if (!(COND)) { GREATEST_FAIL_WITH_LONGJMPm(MSG); }              \
+    } while (0)
+
+/* Fail if a condition is not false, with message. */
+#define GREATEST_ASSERT_FALSEm(MSG, COND)                               \
+    do {                                                                \
+        greatest_info.assertions++;                                     \
+        if ((COND)) { GREATEST_FAILm(MSG); }                            \
+    } while (0)
+
+/* Fail if EXP != GOT (equality comparison by ==). */
+#define GREATEST_ASSERT_EQm(MSG, EXP, GOT)                              \
+    do {                                                                \
+        greatest_info.assertions++;                                     \
+        if ((EXP) != (GOT)) { GREATEST_FAILm(MSG); }                    \
+    } while (0)
+
+/* Fail if EXP != GOT (equality comparison by ==).
+ * Warning: FMT, EXP, and GOT will be evaluated more
+ * than once on failure. */
+#define GREATEST_ASSERT_EQ_FMTm(MSG, EXP, GOT, FMT)                     \
+    do {                                                                \
+        greatest_info.assertions++;                                     \
+        if ((EXP) != (GOT)) {                                           \
+            fprintf(GREATEST_STDOUT, "\nExpected: ");                   \
+            fprintf(GREATEST_STDOUT, FMT, EXP);                         \
+            fprintf(GREATEST_STDOUT, "\n     Got: ");                   \
+            fprintf(GREATEST_STDOUT, FMT, GOT);                         \
+            fprintf(GREATEST_STDOUT, "\n");                             \
+            GREATEST_FAILm(MSG);                                        \
+        }                                                               \
+    } while (0)
+
+/* Fail if EXP is not equal to GOT, printing enum IDs. */
+#define GREATEST_ASSERT_ENUM_EQm(MSG, EXP, GOT, ENUM_STR)               \
+    do {                                                                \
+        int greatest_EXP = (int)(EXP);                                  \
+        int greatest_GOT = (int)(GOT);                                  \
+        greatest_enum_str_fun *greatest_ENUM_STR = ENUM_STR;            \
+        if (greatest_EXP != greatest_GOT) {                             \
+            fprintf(GREATEST_STDOUT, "\nExpected: %s",                  \
+                greatest_ENUM_STR(greatest_EXP));                       \
+            fprintf(GREATEST_STDOUT, "\n     Got: %s\n",                \
+                greatest_ENUM_STR(greatest_GOT));                       \
+            GREATEST_FAILm(MSG);                                        \
+        }                                                               \
+    } while (0)                                                         \
+
+/* Fail if GOT not in range of EXP +|- TOL. */
+#define GREATEST_ASSERT_IN_RANGEm(MSG, EXP, GOT, TOL)                   \
+    do {                                                                \
+        GREATEST_FLOAT greatest_EXP = (EXP);                            \
+        GREATEST_FLOAT greatest_GOT = (GOT);                            \
+        GREATEST_FLOAT greatest_TOL = (TOL);                            \
+        greatest_info.assertions++;                                     \
+        if ((greatest_EXP > greatest_GOT &&                             \
+                greatest_EXP - greatest_GOT > greatest_TOL) ||          \
+            (greatest_EXP < greatest_GOT &&                             \
+                greatest_GOT - greatest_EXP > greatest_TOL)) {          \
+            fprintf(GREATEST_STDOUT,                                    \
+                "\nExpected: " GREATEST_FLOAT_FMT                       \
+                " +/- " GREATEST_FLOAT_FMT                              \
+                "\n     Got: " GREATEST_FLOAT_FMT                       \
+                "\n",                                                   \
+                greatest_EXP, greatest_TOL, greatest_GOT);              \
+            GREATEST_FAILm(MSG);                                        \
+        }                                                               \
+    } while (0)
+
+/* Fail if EXP is not equal to GOT, according to strcmp. */
+#define GREATEST_ASSERT_STR_EQm(MSG, EXP, GOT)                          \
+    do {                                                                \
+        GREATEST_ASSERT_EQUAL_Tm(MSG, EXP, GOT,                         \
+            &greatest_type_info_string, NULL);                          \
+    } while (0)                                                         \
+
+/* Fail if EXP is not equal to GOT, according to strcmp. */
+#define GREATEST_ASSERT_STRN_EQm(MSG, EXP, GOT, SIZE)                   \
+    do {                                                                \
+        size_t size = SIZE;                                             \
+        GREATEST_ASSERT_EQUAL_Tm(MSG, EXP, GOT,                         \
+            &greatest_type_info_string, &size);                         \
+    } while (0)                                                         \
+
+/* Fail if EXP is not equal to GOT, according to memcmp. */
+#define GREATEST_ASSERT_MEM_EQm(MSG, EXP, GOT, SIZE)                    \
+    do {                                                                \
+        greatest_memory_cmp_env env;                                    \
+        env.exp = (const unsigned char *)EXP;                           \
+        env.got = (const unsigned char *)GOT;                           \
+        env.size = SIZE;                                                \
+        GREATEST_ASSERT_EQUAL_Tm(MSG, env.exp, env.got,                 \
+            &greatest_type_info_memory, &env);                          \
+    } while (0)                                                         \
+
+/* Fail if EXP is not equal to GOT, according to a comparison
+ * callback in TYPE_INFO. If they are not equal, optionally use a
+ * print callback in TYPE_INFO to print them. */
+#define GREATEST_ASSERT_EQUAL_Tm(MSG, EXP, GOT, TYPE_INFO, UDATA)       \
+    do {                                                                \
+        greatest_type_info *type_info = (TYPE_INFO);                    \
+        greatest_info.assertions++;                                     \
+        if (!greatest_do_assert_equal_t(EXP, GOT,                       \
+                type_info, UDATA)) {                                    \
+            if (type_info == NULL || type_info->equal == NULL) {        \
+                GREATEST_FAILm("type_info->equal callback missing!");   \
+            } else {                                                    \
+                GREATEST_FAILm(MSG);                                    \
+            }                                                           \
+        }                                                               \
+    } while (0)                                                         \
+
+/* Pass. */
+#define GREATEST_PASSm(MSG)                                             \
+    do {                                                                \
+        greatest_info.msg = MSG;                                        \
+        return GREATEST_TEST_RES_PASS;                                  \
+    } while (0)
+
+/* Fail. */
+#define GREATEST_FAILm(MSG)                                             \
+    do {                                                                \
+        greatest_info.fail_file = __FILE__;                             \
+        greatest_info.fail_line = __LINE__;                             \
+        greatest_info.msg = MSG;                                        \
+        return GREATEST_TEST_RES_FAIL;                                  \
+    } while (0)
+
+/* Optional GREATEST_FAILm variant that longjmps. */
+#if GREATEST_USE_LONGJMP
+#define GREATEST_FAIL_WITH_LONGJMP() GREATEST_FAIL_WITH_LONGJMPm(NULL)
+#define GREATEST_FAIL_WITH_LONGJMPm(MSG)                                \
+    do {                                                                \
+        greatest_info.fail_file = __FILE__;                             \
+        greatest_info.fail_line = __LINE__;                             \
+        greatest_info.msg = MSG;                                        \
+        longjmp(greatest_info.jump_dest, GREATEST_TEST_RES_FAIL);       \
+    } while (0)
+#endif
+
+/* Skip the current test. */
+#define GREATEST_SKIPm(MSG)                                             \
+    do {                                                                \
+        greatest_info.msg = MSG;                                        \
+        return GREATEST_TEST_RES_SKIP;                                  \
+    } while (0)
+
+/* Check the result of a subfunction using ASSERT, etc. */
+#define GREATEST_CHECK_CALL(RES)                                        \
+    do {                                                                \
+        enum greatest_test_res greatest_RES = RES;                      \
+        if (greatest_RES != GREATEST_TEST_RES_PASS) {                   \
+            return greatest_RES;                                        \
+        }                                                               \
+    } while (0)                                                         \
+
+#if GREATEST_USE_TIME
+#define GREATEST_SET_TIME(NAME)                                         \
+    NAME = clock();                                                     \
+    if (NAME == (clock_t) -1) {                                         \
+        fprintf(GREATEST_STDOUT,                                        \
+            "clock error: %s\n", #NAME);                                \
+        exit(EXIT_FAILURE);                                             \
+    }
+
+#define GREATEST_CLOCK_DIFF(C1, C2)                                     \
+    fprintf(GREATEST_STDOUT, " (%lu ticks, %.3f sec)",                  \
+        (long unsigned int) (C2) - (long unsigned int)(C1),             \
+        (double)((C2) - (C1)) / (1.0 * (double)CLOCKS_PER_SEC))
+#else
+#define GREATEST_SET_TIME(UNUSED)
+#define GREATEST_CLOCK_DIFF(UNUSED1, UNUSED2)
+#endif
+
+#if GREATEST_USE_LONGJMP
+#define GREATEST_SAVE_CONTEXT()                                         \
+        /* setjmp returns 0 (GREATEST_TEST_RES_PASS) on first call */   \
+        /* so the test runs, then RES_FAIL from FAIL_WITH_LONGJMP. */   \
+        ((enum greatest_test_res)(setjmp(greatest_info.jump_dest)))
+#else
+#define GREATEST_SAVE_CONTEXT()                                         \
+    /*a no-op, since setjmp/longjmp aren't being used */                \
+    GREATEST_TEST_RES_PASS
+#endif
+
+/* Include several function definitions in the main test file. */
+#define GREATEST_MAIN_DEFS()                                            \
+                                                                        \
+/* Is FILTER a subset of NAME? */                                       \
+static int greatest_name_match(const char *name,                        \
+    const char *filter) {                                               \
+    size_t offset = 0;                                                  \
+    size_t filter_len = strlen(filter);                                 \
+    while (name[offset] != '\0') {                                      \
+        if (name[offset] == filter[0]) {                                \
+            if (0 == strncmp(&name[offset], filter, filter_len)) {      \
+                return 1;                                               \
+            }                                                           \
+        }                                                               \
+        offset++;                                                       \
+    }                                                                   \
+                                                                        \
+    return 0;                                                           \
+}                                                                       \
+                                                                        \
+int greatest_pre_test(const char *name) {                               \
+    if (!GREATEST_LIST_ONLY()                                           \
+        && (!GREATEST_FIRST_FAIL() || greatest_info.suite.failed == 0)  \
+        && (greatest_info.test_filter == NULL ||                        \
+            greatest_name_match(name, greatest_info.test_filter))) {    \
+        GREATEST_SET_TIME(greatest_info.suite.pre_test);                \
+        if (greatest_info.setup) {                                      \
+            greatest_info.setup(greatest_info.setup_udata);             \
+        }                                                               \
+        return 1;               /* test should be run */                \
+    } else {                                                            \
+        return 0;               /* skipped */                           \
+    }                                                                   \
+}                                                                       \
+                                                                        \
+void greatest_post_test(const char *name, int res) {                    \
+    GREATEST_SET_TIME(greatest_info.suite.post_test);                   \
+    if (greatest_info.teardown) {                                       \
+        void *udata = greatest_info.teardown_udata;                     \
+        greatest_info.teardown(udata);                                  \
+    }                                                                   \
+                                                                        \
+    if (res <= GREATEST_TEST_RES_FAIL) {                                \
+        greatest_do_fail(name);                                         \
+    } else if (res >= GREATEST_TEST_RES_SKIP) {                         \
+        greatest_do_skip(name);                                         \
+    } else if (res == GREATEST_TEST_RES_PASS) {                         \
+        greatest_do_pass(name);                                         \
+    }                                                                   \
+    greatest_info.suite.tests_run++;                                    \
+    greatest_info.col++;                                                \
+    if (GREATEST_IS_VERBOSE()) {                                        \
+        GREATEST_CLOCK_DIFF(greatest_info.suite.pre_test,               \
+            greatest_info.suite.post_test);                             \
+        fprintf(GREATEST_STDOUT, "\n");                                 \
+    } else if (greatest_info.col % greatest_info.width == 0) {          \
+        fprintf(GREATEST_STDOUT, "\n");                                 \
+        greatest_info.col = 0;                                          \
+    }                                                                   \
+    fflush(GREATEST_STDOUT);                                            \
+}                                                                       \
+                                                                        \
+static void report_suite(void) {                                        \
+    if (greatest_info.suite.tests_run > 0) {                            \
+        fprintf(GREATEST_STDOUT,                                        \
+            "\n%u test%s - %u passed, %u failed, %u skipped",           \
+            greatest_info.suite.tests_run,                              \
+            greatest_info.suite.tests_run == 1 ? "" : "s",              \
+            greatest_info.suite.passed,                                 \
+            greatest_info.suite.failed,                                 \
+            greatest_info.suite.skipped);                               \
+        GREATEST_CLOCK_DIFF(greatest_info.suite.pre_suite,              \
+            greatest_info.suite.post_suite);                            \
+        fprintf(GREATEST_STDOUT, "\n");                                 \
+    }                                                                   \
+}                                                                       \
+                                                                        \
+static void update_counts_and_reset_suite(void) {                       \
+    greatest_info.setup = NULL;                                         \
+    greatest_info.setup_udata = NULL;                                   \
+    greatest_info.teardown = NULL;                                      \
+    greatest_info.teardown_udata = NULL;                                \
+    greatest_info.passed += greatest_info.suite.passed;                 \
+    greatest_info.failed += greatest_info.suite.failed;                 \
+    greatest_info.skipped += greatest_info.suite.skipped;               \
+    greatest_info.tests_run += greatest_info.suite.tests_run;           \
+    memset(&greatest_info.suite, 0, sizeof(greatest_info.suite));       \
+    greatest_info.col = 0;                                              \
+}                                                                       \
+                                                                        \
+static void greatest_run_suite(greatest_suite_cb *suite_cb,             \
+                               const char *suite_name) {                \
+    if (greatest_info.suite_filter &&                                   \
+        !greatest_name_match(suite_name, greatest_info.suite_filter)) { \
+        return;                                                         \
+    }                                                                   \
+    update_counts_and_reset_suite();                                    \
+    if (GREATEST_FIRST_FAIL() && greatest_info.failed > 0) { return; }  \
+    fprintf(GREATEST_STDOUT, "\n* Suite %s:\n", suite_name);            \
+    GREATEST_SET_TIME(greatest_info.suite.pre_suite);                   \
+    suite_cb();                                                         \
+    GREATEST_SET_TIME(greatest_info.suite.post_suite);                  \
+    report_suite();                                                     \
+}                                                                       \
+                                                                        \
+void greatest_do_pass(const char *name) {                               \
+    if (GREATEST_IS_VERBOSE()) {                                        \
+        fprintf(GREATEST_STDOUT, "PASS %s: %s",                         \
+            name, greatest_info.msg ? greatest_info.msg : "");          \
+    } else {                                                            \
+        fprintf(GREATEST_STDOUT, ".");                                  \
+    }                                                                   \
+    greatest_info.suite.passed++;                                       \
+}                                                                       \
+                                                                        \
+void greatest_do_fail(const char *name) {                               \
+    if (GREATEST_IS_VERBOSE()) {                                        \
+        fprintf(GREATEST_STDOUT,                                        \
+            "FAIL %s: %s (%s:%u)",                                      \
+            name, greatest_info.msg ? greatest_info.msg : "",           \
+            greatest_info.fail_file, greatest_info.fail_line);          \
+    } else {                                                            \
+        fprintf(GREATEST_STDOUT, "F");                                  \
+        greatest_info.col++;                                            \
+        /* add linebreak if in line of '.'s */                          \
+        if (greatest_info.col != 0) {                                   \
+            fprintf(GREATEST_STDOUT, "\n");                             \
+            greatest_info.col = 0;                                      \
+        }                                                               \
+        fprintf(GREATEST_STDOUT, "FAIL %s: %s (%s:%u)\n",               \
+            name,                                                       \
+            greatest_info.msg ? greatest_info.msg : "",                 \
+            greatest_info.fail_file, greatest_info.fail_line);          \
+    }                                                                   \
+    greatest_info.suite.failed++;                                       \
+}                                                                       \
+                                                                        \
+void greatest_do_skip(const char *name) {                               \
+    if (GREATEST_IS_VERBOSE()) {                                        \
+        fprintf(GREATEST_STDOUT, "SKIP %s: %s",                         \
+            name,                                                       \
+            greatest_info.msg ?                                         \
+            greatest_info.msg : "" );                                   \
+    } else {                                                            \
+        fprintf(GREATEST_STDOUT, "s");                                  \
+    }                                                                   \
+    greatest_info.suite.skipped++;                                      \
+}                                                                       \
+                                                                        \
+int greatest_do_assert_equal_t(const void *exp, const void *got,        \
+        greatest_type_info *type_info, void *udata) {                   \
+    int eq = 0;                                                         \
+    if (type_info == NULL || type_info->equal == NULL) {                \
+        return 0;                                                       \
+    }                                                                   \
+    eq = type_info->equal(exp, got, udata);                             \
+    if (!eq) {                                                          \
+        if (type_info->print != NULL) {                                 \
+            fprintf(GREATEST_STDOUT, "\nExpected: ");                   \
+            (void)type_info->print(exp, udata);                         \
+            fprintf(GREATEST_STDOUT, "\n     Got: ");                   \
+            (void)type_info->print(got, udata);                         \
+            fprintf(GREATEST_STDOUT, "\n");                             \
+        } else {                                                        \
+            fprintf(GREATEST_STDOUT,                                    \
+                "GREATEST_ASSERT_EQUAL_T failure at %s:%u\n",           \
+                greatest_info.fail_file,                                \
+                greatest_info.fail_line);                               \
+        }                                                               \
+    }                                                                   \
+    return eq;                                                          \
+}                                                                       \
+                                                                        \
+void greatest_usage(const char *name) {                                 \
+    fprintf(GREATEST_STDOUT,                                            \
+        "Usage: %s [-hlfv] [-s SUITE] [-t TEST]\n"                      \
+        "  -h, --help  print this Help\n"                               \
+        "  -l          List suites and their tests, then exit\n"        \
+        "  -f          Stop runner after first failure\n"               \
+        "  -v          Verbose output\n"                                \
+        "  -s SUITE    only run suites containing string SUITE\n"       \
+        "  -t TEST     only run tests containing string TEST\n",        \
+        name);                                                          \
+}                                                                       \
+                                                                        \
+static void greatest_parse_args(int argc, char **argv) {                \
+    int i = 0;                                                          \
+    for (i = 1; i < argc; i++) {                                        \
+        if (0 == strncmp("-t", argv[i], 2)) {                           \
+            if (argc <= i + 1) {                                        \
+                greatest_usage(argv[0]);                                \
+                exit(EXIT_FAILURE);                                     \
+            }                                                           \
+            greatest_info.test_filter = argv[i+1];                      \
+            i++;                                                        \
+        } else if (0 == strncmp("-s", argv[i], 2)) {                    \
+            if (argc <= i + 1) {                                        \
+                greatest_usage(argv[0]);                                \
+                exit(EXIT_FAILURE);                                     \
+            }                                                           \
+            greatest_info.suite_filter = argv[i+1];                     \
+            i++;                                                        \
+        } else if (0 == strncmp("-f", argv[i], 2)) {                    \
+            greatest_info.flags |= GREATEST_FLAG_FIRST_FAIL;            \
+        } else if (0 == strncmp("-v", argv[i], 2)) {                    \
+            greatest_info.verbosity++;                                  \
+        } else if (0 == strncmp("-l", argv[i], 2)) {                    \
+            greatest_info.flags |= GREATEST_FLAG_LIST_ONLY;             \
+        } else if (0 == strncmp("-h", argv[i], 2) ||                    \
+                   0 == strncmp("--help", argv[i], 6)) {                \
+            greatest_usage(argv[0]);                                    \
+            exit(EXIT_SUCCESS);                                         \
+        } else if (0 == strncmp("--", argv[i], 2)) {                    \
+            break;                                                      \
+        } else {                                                        \
+            fprintf(GREATEST_STDOUT,                                    \
+                "Unknown argument '%s'\n", argv[i]);                    \
+            greatest_usage(argv[0]);                                    \
+            exit(EXIT_FAILURE);                                         \
+        }                                                               \
+    }                                                                   \
+}                                                                       \
+                                                                        \
+int greatest_all_passed(void) { return (greatest_info.failed == 0); }   \
+                                                                        \
+void greatest_set_test_filter(const char *name) {                       \
+    greatest_info.test_filter = name;                                   \
+}                                                                       \
+                                                                        \
+void greatest_set_suite_filter(const char *name) {                      \
+    greatest_info.suite_filter = name;                                  \
+}                                                                       \
+                                                                        \
+void greatest_get_report(struct greatest_report_t *report) {            \
+    if (report) {                                                       \
+        report->passed = greatest_info.passed;                          \
+        report->failed = greatest_info.failed;                          \
+        report->skipped = greatest_info.skipped;                        \
+        report->assertions = greatest_info.assertions;                  \
+    }                                                                   \
+}                                                                       \
+                                                                        \
+unsigned int greatest_get_verbosity(void) {                             \
+    return greatest_info.verbosity;                                     \
+}                                                                       \
+                                                                        \
+void greatest_set_verbosity(unsigned int verbosity) {                   \
+    greatest_info.verbosity = (unsigned char)verbosity;                 \
+}                                                                       \
+                                                                        \
+void greatest_set_flag(greatest_flag_t flag) {                          \
+    greatest_info.flags |= flag;                                        \
+}                                                                       \
+                                                                        \
+void GREATEST_SET_SETUP_CB(greatest_setup_cb *cb, void *udata) {        \
+    greatest_info.setup = cb;                                           \
+    greatest_info.setup_udata = udata;                                  \
+}                                                                       \
+                                                                        \
+void GREATEST_SET_TEARDOWN_CB(greatest_teardown_cb *cb,                 \
+                                    void *udata) {                      \
+    greatest_info.teardown = cb;                                        \
+    greatest_info.teardown_udata = udata;                               \
+}                                                                       \
+                                                                        \
+static int greatest_string_equal_cb(const void *exp, const void *got,   \
+    void *udata) {                                                      \
+    size_t *size = (size_t *)udata;                                     \
+    return (size != NULL                                                \
+        ? (0 == strncmp((const char *)exp, (const char *)got, *size))   \
+        : (0 == strcmp((const char *)exp, (const char *)got)));         \
+}                                                                       \
+                                                                        \
+static int greatest_string_printf_cb(const void *t, void *udata) {      \
+    (void)udata; /* note: does not check \0 termination. */             \
+    return fprintf(GREATEST_STDOUT, "%s", (const char *)t);             \
+}                                                                       \
+                                                                        \
+greatest_type_info greatest_type_info_string = {                        \
+    greatest_string_equal_cb,                                           \
+    greatest_string_printf_cb,                                          \
+};                                                                      \
+                                                                        \
+static int greatest_memory_equal_cb(const void *exp, const void *got,   \
+    void *udata) {                                                      \
+    greatest_memory_cmp_env *env = (greatest_memory_cmp_env *)udata;    \
+    return (0 == memcmp(exp, got, env->size));                          \
+}                                                                       \
+                                                                        \
+static int greatest_memory_printf_cb(const void *t, void *udata) {      \
+    greatest_memory_cmp_env *env = (greatest_memory_cmp_env *)udata;    \
+    const unsigned char *buf = (const unsigned char *)t;                \
+    unsigned char diff_mark = ' ';                                      \
+    FILE *out = GREATEST_STDOUT;                                        \
+    size_t i, line_i, line_len = 0;                                     \
+    int len = 0;   /* format hexdump with differences highlighted */    \
+    for (i = 0; i < env->size; i+= line_len) {                          \
+        diff_mark = ' ';                                                \
+        line_len = env->size - i;                                       \
+        if (line_len > 16) { line_len = 16; }                           \
+        for (line_i = i; line_i < i + line_len; line_i++) {             \
+            if (env->exp[line_i] != env->got[line_i]) diff_mark = 'X';  \
+        }                                                               \
+        len += fprintf(out, "\n%04x %c ", (unsigned int)i, diff_mark);  \
+        for (line_i = i; line_i < i + line_len; line_i++) {             \
+            int m = env->exp[line_i] == env->got[line_i]; /* match? */  \
+            len += fprintf(out, "%02x%c", buf[line_i], m ? ' ' : '<');  \
+        }                                                               \
+        for (line_i = 0; line_i < 16 - line_len; line_i++) {            \
+            len += fprintf(out, "   ");                                 \
+        }                                                               \
+        fprintf(out, " ");                                              \
+        for (line_i = i; line_i < i + line_len; line_i++) {             \
+            unsigned char c = buf[line_i];                              \
+            len += fprintf(out, "%c", isprint(c) ? c : '.');            \
+        }                                                               \
+    }                                                                   \
+    len += fprintf(out, "\n");                                          \
+    return len;                                                         \
+}                                                                       \
+                                                                        \
+greatest_type_info greatest_type_info_memory = {                        \
+    greatest_memory_equal_cb,                                           \
+    greatest_memory_printf_cb,                                          \
+};                                                                      \
+                                                                        \
+greatest_run_info greatest_info
+
+/* Init internals. */
+#define GREATEST_INIT()                                                 \
+    do {                                                                \
+        /* Suppress unused function warning if features aren't used */  \
+        (void)greatest_run_suite;                                       \
+        (void)greatest_parse_args;                                      \
+                                                                        \
+        memset(&greatest_info, 0, sizeof(greatest_info));               \
+        greatest_info.width = GREATEST_DEFAULT_WIDTH;                   \
+        GREATEST_SET_TIME(greatest_info.begin);                         \
+    } while (0)                                                         \
+
+/* Handle command-line arguments, etc. */
+#define GREATEST_MAIN_BEGIN()                                           \
+    do {                                                                \
+        GREATEST_INIT();                                                \
+        greatest_parse_args(argc, argv);                                \
+    } while (0)
+
+/* Report passes, failures, skipped tests, the number of
+ * assertions, and the overall run time. */
+#define GREATEST_PRINT_REPORT()                                         \
+    do {                                                                \
+        if (!GREATEST_LIST_ONLY()) {                                    \
+            update_counts_and_reset_suite();                            \
+            GREATEST_SET_TIME(greatest_info.end);                       \
+            fprintf(GREATEST_STDOUT,                                    \
+                "\nTotal: %u test%s",                                   \
+                greatest_info.tests_run,                                \
+                greatest_info.tests_run == 1 ? "" : "s");               \
+            GREATEST_CLOCK_DIFF(greatest_info.begin,                    \
+                greatest_info.end);                                     \
+            fprintf(GREATEST_STDOUT, ", %u assertion%s\n",              \
+                greatest_info.assertions,                               \
+                greatest_info.assertions == 1 ? "" : "s");              \
+            fprintf(GREATEST_STDOUT,                                    \
+                "Pass: %u, fail: %u, skip: %u.\n",                      \
+                greatest_info.passed,                                   \
+                greatest_info.failed, greatest_info.skipped);           \
+        }                                                               \
+    } while (0)
+
+/* Report results, exit with exit status based on results. */
+#define GREATEST_MAIN_END()                                             \
+    do {                                                                \
+        GREATEST_PRINT_REPORT();                                        \
+        return (greatest_all_passed() ? EXIT_SUCCESS : EXIT_FAILURE);   \
+    } while (0)
+
+/* Make abbreviations without the GREATEST_ prefix for the
+ * most commonly used symbols. */
+#if GREATEST_USE_ABBREVS
+#define TEST           GREATEST_TEST
+#define SUITE          GREATEST_SUITE
+#define SUITE_EXTERN   GREATEST_SUITE_EXTERN
+#define RUN_TEST       GREATEST_RUN_TEST
+#define RUN_TEST1      GREATEST_RUN_TEST1
+#define RUN_SUITE      GREATEST_RUN_SUITE
+#define IGNORE_TEST    GREATEST_IGNORE_TEST
+#define ASSERT         GREATEST_ASSERT
+#define ASSERTm        GREATEST_ASSERTm
+#define ASSERT_FALSE   GREATEST_ASSERT_FALSE
+#define ASSERT_EQ      GREATEST_ASSERT_EQ
+#define ASSERT_EQ_FMT  GREATEST_ASSERT_EQ_FMT
+#define ASSERT_IN_RANGE GREATEST_ASSERT_IN_RANGE
+#define ASSERT_EQUAL_T GREATEST_ASSERT_EQUAL_T
+#define ASSERT_STR_EQ  GREATEST_ASSERT_STR_EQ
+#define ASSERT_STRN_EQ GREATEST_ASSERT_STRN_EQ
+#define ASSERT_MEM_EQ  GREATEST_ASSERT_MEM_EQ
+#define ASSERT_ENUM_EQ GREATEST_ASSERT_ENUM_EQ
+#define ASSERT_FALSEm  GREATEST_ASSERT_FALSEm
+#define ASSERT_EQm     GREATEST_ASSERT_EQm
+#define ASSERT_EQ_FMTm GREATEST_ASSERT_EQ_FMTm
+#define ASSERT_IN_RANGEm GREATEST_ASSERT_IN_RANGEm
+#define ASSERT_EQUAL_Tm GREATEST_ASSERT_EQUAL_Tm
+#define ASSERT_STR_EQm GREATEST_ASSERT_STR_EQm
+#define ASSERT_STRN_EQm GREATEST_ASSERT_STRN_EQm
+#define ASSERT_MEM_EQm GREATEST_ASSERT_MEM_EQm
+#define ASSERT_ENUM_EQm GREATEST_ASSERT_ENUM_EQm
+#define PASS           GREATEST_PASS
+#define FAIL           GREATEST_FAIL
+#define SKIP           GREATEST_SKIP
+#define PASSm          GREATEST_PASSm
+#define FAILm          GREATEST_FAILm
+#define SKIPm          GREATEST_SKIPm
+#define SET_SETUP      GREATEST_SET_SETUP_CB
+#define SET_TEARDOWN   GREATEST_SET_TEARDOWN_CB
+#define CHECK_CALL     GREATEST_CHECK_CALL
+
+#ifdef GREATEST_VA_ARGS
+#define RUN_TESTp      GREATEST_RUN_TESTp
+#endif
+
+#if GREATEST_USE_LONGJMP
+#define ASSERT_OR_LONGJMP  GREATEST_ASSERT_OR_LONGJMP
+#define ASSERT_OR_LONGJMPm GREATEST_ASSERT_OR_LONGJMPm
+#define FAIL_WITH_LONGJMP  GREATEST_FAIL_WITH_LONGJMP
+#define FAIL_WITH_LONGJMPm GREATEST_FAIL_WITH_LONGJMPm
+#endif
+
+#endif /* USE_ABBREVS */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+5.1,3.5,1.4,0.2,Iris-setosa
+4.9,3.0,1.4,0.2,Iris-setosa
+4.7,3.2,1.3,0.2,Iris-setosa
+4.6,3.1,1.5,0.2,Iris-setosa
+5.0,3.6,1.4,0.2,Iris-setosa
+5.4,3.9,1.7,0.4,Iris-setosa
+4.6,3.4,1.4,0.3,Iris-setosa
+5.0,3.4,1.5,0.2,Iris-setosa
+4.4,2.9,1.4,0.2,Iris-setosa
+4.9,3.1,1.5,0.1,Iris-setosa
+5.4,3.7,1.5,0.2,Iris-setosa
+4.8,3.4,1.6,0.2,Iris-setosa
+4.8,3.0,1.4,0.1,Iris-setosa
+4.3,3.0,1.1,0.1,Iris-setosa
+5.8,4.0,1.2,0.2,Iris-setosa
+5.7,4.4,1.5,0.4,Iris-setosa
+5.4,3.9,1.3,0.4,Iris-setosa
+5.1,3.5,1.4,0.3,Iris-setosa
+5.7,3.8,1.7,0.3,Iris-setosa
+5.1,3.8,1.5,0.3,Iris-setosa
+5.4,3.4,1.7,0.2,Iris-setosa
+5.1,3.7,1.5,0.4,Iris-setosa
+4.6,3.6,1.0,0.2,Iris-setosa
+5.1,3.3,1.7,0.5,Iris-setosa
+4.8,3.4,1.9,0.2,Iris-setosa
+5.0,3.0,1.6,0.2,Iris-setosa
+5.0,3.4,1.6,0.4,Iris-setosa
+5.2,3.5,1.5,0.2,Iris-setosa
+5.2,3.4,1.4,0.2,Iris-setosa
+4.7,3.2,1.6,0.2,Iris-setosa
+4.8,3.1,1.6,0.2,Iris-setosa
+5.4,3.4,1.5,0.4,Iris-setosa
+5.2,4.1,1.5,0.1,Iris-setosa
+5.5,4.2,1.4,0.2,Iris-setosa
+4.9,3.1,1.5,0.1,Iris-setosa
+5.0,3.2,1.2,0.2,Iris-setosa
+5.5,3.5,1.3,0.2,Iris-setosa
+4.9,3.1,1.5,0.1,Iris-setosa
+4.4,3.0,1.3,0.2,Iris-setosa
+5.1,3.4,1.5,0.2,Iris-setosa
+5.0,3.5,1.3,0.3,Iris-setosa
+4.5,2.3,1.3,0.3,Iris-setosa
+4.4,3.2,1.3,0.2,Iris-setosa
+5.0,3.5,1.6,0.6,Iris-setosa
+5.1,3.8,1.9,0.4,Iris-setosa
+4.8,3.0,1.4,0.3,Iris-setosa
+5.1,3.8,1.6,0.2,Iris-setosa
+4.6,3.2,1.4,0.2,Iris-setosa
+5.3,3.7,1.5,0.2,Iris-setosa
+5.0,3.3,1.4,0.2,Iris-setosa
+7.0,3.2,4.7,1.4,Iris-versicolor
+6.4,3.2,4.5,1.5,Iris-versicolor
+6.9,3.1,4.9,1.5,Iris-versicolor
+5.5,2.3,4.0,1.3,Iris-versicolor
+6.5,2.8,4.6,1.5,Iris-versicolor
+5.7,2.8,4.5,1.3,Iris-versicolor
+6.3,3.3,4.7,1.6,Iris-versicolor
+4.9,2.4,3.3,1.0,Iris-versicolor
+6.6,2.9,4.6,1.3,Iris-versicolor
+5.2,2.7,3.9,1.4,Iris-versicolor
+5.0,2.0,3.5,1.0,Iris-versicolor
+5.9,3.0,4.2,1.5,Iris-versicolor
+6.0,2.2,4.0,1.0,Iris-versicolor
+6.1,2.9,4.7,1.4,Iris-versicolor
+5.6,2.9,3.6,1.3,Iris-versicolor
+6.7,3.1,4.4,1.4,Iris-versicolor
+5.6,3.0,4.5,1.5,Iris-versicolor
+5.8,2.7,4.1,1.0,Iris-versicolor
+6.2,2.2,4.5,1.5,Iris-versicolor
+5.6,2.5,3.9,1.1,Iris-versicolor
+5.9,3.2,4.8,1.8,Iris-versicolor
+6.1,2.8,4.0,1.3,Iris-versicolor
+6.3,2.5,4.9,1.5,Iris-versicolor
+6.1,2.8,4.7,1.2,Iris-versicolor
+6.4,2.9,4.3,1.3,Iris-versicolor
+6.6,3.0,4.4,1.4,Iris-versicolor
+6.8,2.8,4.8,1.4,Iris-versicolor
+6.7,3.0,5.0,1.7,Iris-versicolor
+6.0,2.9,4.5,1.5,Iris-versicolor
+5.7,2.6,3.5,1.0,Iris-versicolor
+5.5,2.4,3.8,1.1,Iris-versicolor
+5.5,2.4,3.7,1.0,Iris-versicolor
+5.8,2.7,3.9,1.2,Iris-versicolor
+6.0,2.7,5.1,1.6,Iris-versicolor
+5.4,3.0,4.5,1.5,Iris-versicolor
+6.0,3.4,4.5,1.6,Iris-versicolor
+6.7,3.1,4.7,1.5,Iris-versicolor
+6.3,2.3,4.4,1.3,Iris-versicolor
+5.6,3.0,4.1,1.3,Iris-versicolor
+5.5,2.5,4.0,1.3,Iris-versicolor
+5.5,2.6,4.4,1.2,Iris-versicolor
+6.1,3.0,4.6,1.4,Iris-versicolor
+5.8,2.6,4.0,1.2,Iris-versicolor
+5.0,2.3,3.3,1.0,Iris-versicolor
+5.6,2.7,4.2,1.3,Iris-versicolor
+5.7,3.0,4.2,1.2,Iris-versicolor
+5.7,2.9,4.2,1.3,Iris-versicolor
+6.2,2.9,4.3,1.3,Iris-versicolor
+5.1,2.5,3.0,1.1,Iris-versicolor
+5.7,2.8,4.1,1.3,Iris-versicolor
+6.3,3.3,6.0,2.5,Iris-virginica
+5.8,2.7,5.1,1.9,Iris-virginica
+7.1,3.0,5.9,2.1,Iris-virginica
+6.3,2.9,5.6,1.8,Iris-virginica
+6.5,3.0,5.8,2.2,Iris-virginica
+7.6,3.0,6.6,2.1,Iris-virginica
+4.9,2.5,4.5,1.7,Iris-virginica
+7.3,2.9,6.3,1.8,Iris-virginica
+6.7,2.5,5.8,1.8,Iris-virginica
+7.2,3.6,6.1,2.5,Iris-virginica
+6.5,3.2,5.1,2.0,Iris-virginica
+6.4,2.7,5.3,1.9,Iris-virginica
+6.8,3.0,5.5,2.1,Iris-virginica
+5.7,2.5,5.0,2.0,Iris-virginica
+5.8,2.8,5.1,2.4,Iris-virginica
+6.4,3.2,5.3,2.3,Iris-virginica
+6.5,3.0,5.5,1.8,Iris-virginica
+7.7,3.8,6.7,2.2,Iris-virginica
+7.7,2.6,6.9,2.3,Iris-virginica
+6.0,2.2,5.0,1.5,Iris-virginica
+6.9,3.2,5.7,2.3,Iris-virginica
+5.6,2.8,4.9,2.0,Iris-virginica
+7.7,2.8,6.7,2.0,Iris-virginica
+6.3,2.7,4.9,1.8,Iris-virginica
+6.7,3.3,5.7,2.1,Iris-virginica
+7.2,3.2,6.0,1.8,Iris-virginica
+6.2,2.8,4.8,1.8,Iris-virginica
+6.1,3.0,4.9,1.8,Iris-virginica
+6.4,2.8,5.6,2.1,Iris-virginica
+7.2,3.0,5.8,1.6,Iris-virginica
+7.4,2.8,6.1,1.9,Iris-virginica
+7.9,3.8,6.4,2.0,Iris-virginica
+6.4,2.8,5.6,2.2,Iris-virginica
+6.3,2.8,5.1,1.5,Iris-virginica
+6.1,2.6,5.6,1.4,Iris-virginica
+7.7,3.0,6.1,2.3,Iris-virginica
+6.3,3.4,5.6,2.4,Iris-virginica
+6.4,3.1,5.5,1.8,Iris-virginica
+6.0,3.0,4.8,1.8,Iris-virginica
+6.9,3.1,5.4,2.1,Iris-virginica
+6.7,3.1,5.6,2.4,Iris-virginica
+6.9,3.1,5.1,2.3,Iris-virginica
+5.8,2.7,5.1,1.9,Iris-virginica
+6.8,3.2,5.9,2.3,Iris-virginica
+6.7,3.3,5.7,2.5,Iris-virginica
+6.7,3.0,5.2,2.3,Iris-virginica
+6.3,2.5,5.0,1.9,Iris-virginica
+6.5,3.0,5.2,2.0,Iris-virginica
+6.2,3.4,5.4,2.3,Iris-virginica
+5.9,3.0,5.1,1.8,Iris-virginica
+
+#include "knn.c"
+#include "greatest.h"
+
+#include "terminal_user_input.h"
+
+//Defining tolerances for tests
+#define FLOAT_TOLERANCE 0.01
+
+TEST mode_3_inputs(void) {
+  //Setup array of integers
+  int inputs[3] = {3, 3, 7};
+
+  //Pass array of integers into function
+  //Check mode is correct
+
+  ASSERT_EQ(3, mode(inputs, 3));
+
+  PASS();
+}
+
+TEST mode_with_zero (void) {
+  //Setup array of integers
+  int inputs[3] = {0, 1, 1};
+
+  //Pass array of integers into function
+  //Check mode is correct
+
+  ASSERT_EQ(1, mode(inputs, 3));
+
+  PASS();
+}
+
+TEST mode_7_inputs(void) {
+  //Setup array of integers
+  int inputs[7] = {1, 2, 3, 1, 7, 8, 1};
+
+  //Pass array of integers into function
+  //Check mode is correct
+
+  ASSERT_EQ(1, mode(inputs, 7));
+
+  PASS();
+}
+
+//Test bimodal
+
+//Compare two integers that are equal
+TEST compare_ints(void) {
+  int n1 = 1;
+  int n2 = 1;
+  ASSERT_EQ(compare_int(&n1, &n2), 0);
+  PASS();
+}
+
+//Compare two integers that are equal
+TEST compare_greater_int(void) {
+  int n1 = 2;
+  int n2 = 1;
+  ASSERT_EQ(compare_int(&n1, &n2), 1);
+  PASS();
+}
+
+//Compare two integers that are equal
+TEST compare_very_different_int_negative (void) {
+  int n1 = 1;
+  int n2 = 4;
+  ASSERT_EQ(compare_int(&n1, &n2), -1);
+  PASS();
+}
+
+TEST compare_very_different_int_positive (void) {
+  int n1 = 4;
+  int n2 = 1;
+  ASSERT_EQ(compare_int(&n1, &n2), 1);
+  PASS();
+}
+
+/* A test runs various assertions, then calls PASS(), FAIL(), or SKIP(). */
+TEST distance_3_dimensions(void) {
+  float array1[3] = {2.0, 2.0, 2.0};
+  Comparison_Point point1 = {array1, NULL};
+
+  float array2[3] = {5.0, 5.0, 5.0};
+  Point point2 = {array2, 0, NULL};
+
+  ASSERT_IN_RANGE(5.1962, point_distance(point1, point2, 3), FLOAT_TOLERANCE);
+  PASS();
+}
+
+TEST distance_10_dimensions(void) {
+  float array1[10] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+  Comparison_Point point1 = {array1, NULL};
+
+  float array2[10] = {10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0};
+  Point point2 = {array2, 0};
+
+  ASSERT_IN_RANGE(28.4605, point_distance(point1, point2, 10), FLOAT_TOLERANCE);
+  PASS();
+}
+
+TEST distance_1_dimension(void) {
+  float array1[1] = {3.0};
+  Comparison_Point point1 = {array1, NULL};
+
+  float array2[1] = {6.0};
+  Point point2 = {array2, 0};
+
+  ASSERT_IN_RANGE(3.0, point_distance(point1, point2, 1), FLOAT_TOLERANCE);
+  PASS();
+}
+
+TEST distance_1_dimension_fraction(void) {
+  float array1[1] = {3.0};
+  Comparison_Point point1 = {array1, NULL};
+
+  float array2[1] = {3.5};
+  Point point2 = {array2, 0};
+
+  ASSERT_IN_RANGE(0.5, point_distance(point1, point2, 1), FLOAT_TOLERANCE);
+  PASS();
+}
+
+//How do I initialise arrays with the {} curly braces syntax?
+
+//Test the creation of an array (neighbours) with distances to every single point,
+//taking one point and a dataset
+//We need a distance associated with a point
+
+//Test k NN search
+//Ensure that the returned array contains the correct integers
+
+//Test the nearest 1 neighbour can be found
+TEST find_1_nearest_neighbour(void) {
+  int k = 1;
+
+  int category = 0;
+  //Pass it the stuff it needs, the dataset,
+  float dimensions[] = {5};
+  Point point1 = {dimensions, category};
+
+  //Since we've only got a length of 1, just use a pointer straight to the single point
+  Point* points = &point1;
+  Dataset single_point_dataset = {1, 1, points};
+
+  float comparison_dimensions[] = {3};
+  //TODO, fix the comparison point category
+  Comparison_Point compare = {comparison_dimensions, 0, NULL};
+
+  //One point to compare to the rest
+  ASSERT_EQ(category, knn_search(k, compare, &single_point_dataset));
+  free(compare.neighbour);
+  PASS();
+}
+
+
+//One dimensional, 5 point dataset, find average of k=3 neighbours
+//Test the code can handle updating 3 of the 5 without having to update a distance
+TEST find_3_nearest_neighbour(void) {
+  //Setup
+  int k = 3;
+
+  //Pass it the stuff it needs, the dataset,
+  float dimensions0[] = {5.0};
+  Point point0 = {dimensions0, 0};
+
+  float dimensions1[] = {6.0};
+  Point point1 = {dimensions1, 1};
+
+  float dimensions2[] = {7.0};
+  Point point2 = {dimensions2, 1};
+
+  float dimensions3[] = {0.0};
+  Point point3 = {dimensions3, 0};
+
+  float dimensions4[] = {-1.0};
+  Point point4 = {dimensions4, 0};
+
+  //Since we've only got a length of 1, just use a pointer straight to the single point
+  Point points[5] = {point0, point1, point2, point3, point4};
+  Dataset point_dataset = {1, 5, points};
+
+  float comparison_dimensions[] = {6.5};
+  //TODO, fix the comparison point category
+  Comparison_Point compare = {comparison_dimensions, NULL};
+
+  int category = knn_search(k, compare, &point_dataset);
+  free(compare.neighbour);
+
+  //One point to compare to the rest
+  ASSERT_EQ(1, category);
+  PASS();
+}
+
+TEST classify_int(void) {
+  //The class integer to be selected
+  int class = 0;
+
+  //Using only the minimum 1 categories
+  Classifier_List flower_map;
+  flower_map.categories = (my_string*)malloc(sizeof(my_string));
+
+  strcpy(flower_map.categories[0].str, "Iris");
+
+  my_string category = classify(flower_map, class);
+
+  ASSERT_STR_EQ("Iris", category.str);
+  PASS();
+  free(flower_map.categories);
+}
+
+TEST extract_field_1(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "1.1, 1.2, 1.3, 1.4");
+
+  ASSERT_STR_EQ("1.1", extract_field(test_line, 1).str);
+  PASS();
+}
+
+TEST extract_field_4(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "1.1, 1.2, 1.3, 1.4");
+
+  ASSERT_STR_EQ("1.4", extract_field(test_line, 4).str);
+  PASS();
+}
+
+TEST extract_field_different_formatting(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "1.1,,,''1.2,three, 6");
+
+  ASSERT_STR_EQ("three", extract_field(test_line, 3).str);
+  PASS();
+}
+
+TEST extract_flower_field(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "5.1,3.5,1.4,0.2,Iris-setosa");
+
+  ASSERT_STR_EQ("Iris-setosa", extract_field(test_line, 5).str);
+  PASS();
+}
+
+TEST field_2(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "5.1,3.5,1.4,0.2,Iris-setosa");
+
+  ASSERT_STR_EQ("3.5", extract_field(test_line, 2).str);
+  PASS();
+}
+
+TEST out_of_bounds(void) {
+  //From a string of "1.1, 1.2, 1.3, 1.4", extract field 1
+  my_string test_line;
+  strcpy(test_line.str, "5.1,3.5,1.4,0.2,Iris-setosa");
+
+  ASSERT_STR_EQ("\0", extract_field(test_line, 6).str);
+  PASS();
+}
+
+TEST gets_class_int(void) {
+  //Pass in a string, with a class_list which contains it, see if the correct value is returned
+  my_string strings[4] = {{"mycategory1"}, {"mycategory2"}, {"mycategory3"}, {"mycategory4"}};
+  Classifier_List class_list = {strings, 4};
+  ASSERT_EQ(0, get_class_num(class_list.categories[0], &class_list));
+
+  PASS();
+}
+
+TEST initialise_category(void) {
+  Classifier_List new_list = new_classifier_list();
+  strcpy(new_list.categories[0].str, "Testing Category");
+
+  ASSERT_EQ(0, new_list.num_categories);
+  PASS();
+}
+
+TEST create_first_category(void) {
+  //Pass in a string, with a class_list which contains it, see if the correct value is returned
+  my_string first_class = {"Test Category"};
+
+  Classifier_List class_list = new_classifier_list();
+  ASSERT_EQ(0, get_class_num(first_class, &class_list));
+  ASSERT_STR_EQ(first_class.str, class_list.categories[0].str);
+
+  PASS();
+}
+
+TEST create_new_category(void) {
+  //Pass in a string, with a class_list which contains it, see if the correct value is returned
+  my_string first_class = {"Test Category"};
+  my_string second_class = {"Class2"};
+
+  Classifier_List class_list = new_classifier_list();
+  ASSERT_EQ(0, get_class_num(first_class, &class_list));
+  ASSERT_STR_EQ(first_class.str, class_list.categories[0].str);
+
+  ASSERT_EQ(1, get_class_num(second_class, &class_list));
+  ASSERT_STR_EQ(second_class.str, class_list.categories[1].str);
+
+  #ifdef DEBUG
+  print_classes(class_list);
+  #endif
+
+  PASS();
+}
+
+
+//Test that the correct number is returned after a call to the string is passed to the classifier
+
+/* Suites can group multiple tests with common setup. */
+SUITE(external_suite) {
+    RUN_TEST(distance_1_dimension);
+    RUN_TEST(distance_1_dimension_fraction);
+    RUN_TEST(distance_3_dimensions);
+    RUN_TEST(distance_10_dimensions);
+
+    RUN_TEST(classify_int);
+
+    RUN_TEST(mode_3_inputs);
+    RUN_TEST(mode_with_zero);
+    RUN_TEST(mode_7_inputs);
+
+    RUN_TEST(compare_ints);
+    RUN_TEST(compare_greater_int);
+    RUN_TEST(compare_very_different_int_positive);
+    RUN_TEST(compare_very_different_int_negative);
+
+    RUN_TEST(find_1_nearest_neighbour);
+    RUN_TEST(find_3_nearest_neighbour);
+
+    RUN_TEST(extract_field_1);
+    RUN_TEST(extract_field_4);
+    RUN_TEST(extract_field_different_formatting);
+    RUN_TEST(extract_flower_field);
+    RUN_TEST(field_2);
+    RUN_TEST(out_of_bounds);
+
+    //Testing the configuration manager
+    RUN_TEST(gets_class_int);
+    RUN_TEST(initialise_category);
+    RUN_TEST(create_first_category);
+    RUN_TEST(create_new_category);
+}
+
+/* Add definitions that need to be in the test runner's main file. */
+GREATEST_SUITE(external_suite);
+// ============================
+// = User Input Function in C =
+// ============================
+
+
+#include <stdio.h>
+#include "terminal_user_input.h"
+
+//
+// Reads a string of up to 255 characters + 1 for null
+//
+my_string read_string(const char* prompt)
+{
+  my_string result;     // declares a "my_string" variable (contains the array of character)
+  printf("%s", prompt); // output the string from the prompt "%s" defines where to place the string in the output
+  scanf(" %255[^\n]%*c", result.str ); // scan the input looking for upto 255 characters [ that are not newlines ], read this into the string variable
+  return result; // return the my string value
+}
+
+//
+// Reads a integer from the user.
+//
+int read_integer(const char* prompt)
+{
+  my_string line;
+  int result;    // where we will store the result of the function
+  char temp;  //used to check nothing comes after the int
+
+  // Read in the string the user entered.
+  line = read_string(prompt);
+
+  // scan the string, looking for a number ... followed by nothing
+  // sscanf = string scan format
+  //          This will "scan" the array of character in line.str (reads this)
+  //          " " = skip any spaces
+  //          "%d" = read an integer
+  //          " " = skip any spaces
+  //          "%c" = read a character
+  // sscanf returns the number of things it read (0 to 2 in this case)
+  //          Loop while this is not equal to 1
+  //          0 = did not read a number at the start
+  //          1 = read a number, but no character followed it
+  //          2 = read a number and a character... like "1 fred" (1 is the number, f is the character)
+  while ( sscanf(line.str, " %d %c", &result, &temp) != 1 )
+  {
+    // scan found a number followed by something... so its not a whole number
+    printf("Please enter a whole number.\n");
+
+    // read the next "string" and try again
+    line = read_string(prompt);
+  }
+
+  return result;
+}
+
+int read_integer_range(const char* prompt, int min, int max)
+{
+  int result = read_integer(prompt);
+  while ( result < min || result > max )
+  {
+    printf("Please enter a number between %d and %d\n", min, max);
+    result = read_integer(prompt);
+  }
+  return result;
+}
+
+double read_double(const char* prompt)
+{
+  my_string line;
+  double result;    // where we will store the result of the function
+  char temp;  //used to check nothing comes after the int
+
+  // Read in the string the user entered.
+  line = read_string(prompt);
+
+  while ( sscanf(line.str, " %lf %c", &result, &temp) != 1 )
+  {
+    // scan found a number followed by something... so its not a whole number
+    printf("Please enter a number.\n");
+
+    // read the next "string" and try again
+    line = read_string(prompt);
+  }
+
+  return result;
+}
+
+float read_float(const char* prompt)
+{
+  return (float)read_double(prompt);
+}
+
+int read_boolean(const char* prompt)
+{
+  my_string line;
+  line = read_string(prompt);
+
+  while( line.str[0] != 'y' && line.str[0] != 'n' ) {
+    printf("Please enter yes or no [y/n].");
+    line = read_string(prompt);
+  }
+  if (line.str[0] == 'y') {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+// ============================
+// = User Input Function in C =
+// ============================
+
+//
+// This header file contains the types and functions/procedures
+// in the Terminal User Input code. You can #include "terminal_user_input.h"
+// to access these from your project. Remember to compile both your
+// program file and the terminal_user_input.c file.
+//
+
+//
+// The following code makes sure that you cant accidentally
+// include this code twice. It is common to see this kind of
+// code at the top of a C/C++ header file.
+//
+#ifndef TERMINAL_USER_INPUT_H
+#define TERMINAL_USER_INPUT_H
+
+//
+// The my_string type can be used to represent a "string" in C.
+// This needs to be a struct so that it can be returned from
+// functions.
+//
+typedef struct my_string
+{
+  char str[256]; // my string contains an array of 255 characters + null
+} my_string;
+
+//
+// Reads a string of up to 255 characters + 1 for null
+//
+my_string read_string(const char* prompt);
+
+//
+// Reads a integer from the user.
+//
+int read_integer(const char* prompt);
+
+//
+// Reads a integer from the user in a given range.
+//
+int read_integer_range(const char* prompt, int min, int max);
+
+//
+// Reads a double from the user.
+//
+double read_double(const char* prompt);
+
+//
+// Reads a float from the user.
+//
+float read_float(const char* prompt);
+
+//
+// Reads a boolean value from the user
+//
+
+int read_boolean(const char* prompt);
+
+#endif
