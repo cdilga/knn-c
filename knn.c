@@ -25,11 +25,6 @@ typedef struct {
   int num_categories;
 } Classifier_List;
 
-//Datatype allows to return list of neighbours because you cannont return arrays in c
-typedef struct {
-  int *category;
-} Neighbour_List;
-
 //Datatype is euclidean point
 typedef struct point {
   float *dimension;
@@ -58,16 +53,10 @@ typedef struct comparision_point {
 } Comparison_Point;
 
 //Apparently C doesn't have boolean types
-typedef enum {
+typedef enum boolean {
   false,
   true
 } bool;
-
-// typedef struct csv_file {
-//   char data[][][255];
-//   int num_line;
-//   int num_fields;
-// } CSV_File;
 
 int knn_pow(int x, int n) {
   int result = 1;
@@ -99,6 +88,10 @@ float point_distance(Comparison_Point x, Point y, int dimensions) {
 
 //Compare two integers
 int compare_int(const void *v1, const void *v2) {
+  //if value 1 is greater than value 2, positive,
+  //if equal, 0
+  //if value 1 less value 2, negative
+
   int n1 = *(int*)v1;
   int n2 = *(int*)v2;
   if (n1 - n2 > 1) {
@@ -108,9 +101,7 @@ int compare_int(const void *v1, const void *v2) {
   }
   return n1 - n2;
 }
-//if value 1 is greater than value 2, positive,
-//if equal, 0
-//if value 1 less value 2, negative,
+
 
 //Calculate the mode
 int mode(int *values, int num_values) {
@@ -369,8 +360,7 @@ Comparison_Point read_comparison_point_user(int num_dimensions) {
   //TODO fix memory allocation
   return user_point;
 }
-
-int count_fields(char *buffer) {
+g
   int count = 1;
   int pos = 0;
   char current;
