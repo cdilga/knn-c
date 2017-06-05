@@ -144,7 +144,7 @@ TEST find_1_nearest_neighbour(void) {
 
   float comparison_dimensions[] = {3};
   //TODO, fix the comparison point category
-  Comparison_Point compare = {comparison_dimensions, 0, NULL};
+  Comparison_Point compare = {comparison_dimensions, NULL};
 
   //One point to compare to the rest
   ASSERT_EQ(category, knn_search(k, compare, &single_point_dataset));
@@ -309,6 +309,47 @@ TEST create_new_category(void) {
   PASS();
 }
 
+TEST knn_accuracy(void) {
+  //Comments step through the expected classification of the knn
+  //for each point removed and then consider the percentage correct for that k
+  //In this case k=3
+  printf("Fucking hell\n");
+  float dimensions0[] = {5.0};
+  Point point0 = {dimensions0, 0};
+  //Classed 1
+  //Incorrect
+
+  float dimensions1[] = {6.0};
+  Point point1 = {dimensions1, 1};
+  //Classed 0
+  //Incorrect
+
+  float dimensions2[] = {7.0};
+  Point point2 = {dimensions2, 1};
+  //Classed 0
+  //Incorrect
+
+  float dimensions3[] = {0.0};
+  Point point3 = {dimensions3, 0};
+  //Classed 0
+  //Correct
+
+  float dimensions4[] = {-1.0};
+  Point point4 = {dimensions4, 0};
+  //Classed 0
+  //correct
+
+  //Count is 2
+  // 2/5=0.4
+
+  Point points[5] = {point0, point1, point2, point3, point4};
+  Dataset test_dataset = {1, 5, points};
+  evaluate_knn(3, &test_dataset);
+
+  ASSERT_IN_RANGE(0.4, evaluate_knn(3, &test_dataset), FLOAT_TOLERANCE);
+  PASS();
+}
+
 
 //Test that the correct number is returned after a call to the string is passed to the classifier
 
@@ -345,6 +386,8 @@ SUITE(external_suite) {
     RUN_TEST(initialise_category);
     RUN_TEST(create_first_category);
     RUN_TEST(create_new_category);
+
+    RUN_TEST(knn_accuracy);
 }
 
 /* Add definitions that need to be in the test runner's main file. */

@@ -11,6 +11,8 @@
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
+#define EVALUATE
+
 //Define a testing suite that is external to reduce code in this file
 SUITE_EXTERN(external_suite);
 
@@ -360,7 +362,8 @@ Comparison_Point read_comparison_point_user(int num_dimensions) {
   //TODO fix memory allocation
   return user_point;
 }
-g
+
+int count_fields(char *buffer) {
   int count = 1;
   int pos = 0;
   char current;
@@ -535,6 +538,60 @@ Classifier_List new_classifier_list() {
   return new_list;
 }
 
+//Takes k as a parameter and also a dataset
+//Measure the accuracy of the knn given a dataset, using the remove one method
+float evaluate_knn(int k, Dataset *benchmark_dataset) {
+
+  float accuracy;
+  Dataset comparison_dataset = new_dataset();
+  comparison_dataset.dimensionality = benchmark_dataset->dimensionality;
+  comparison_dataset.num_points = benchmark_dataset->num_points - 1;
+
+  comparison_dataset.points = (Point*)malloc(comparison_dataset.num_points*sizeof(Point));
+
+  int sum_correct = 0;
+  // Make a copy of the dataset, except missing the i'th term.
+  for (int i = 0; i < benchmark_dataset->num_points; i++) {
+    //Loop through the dataset the number of times there are points
+    #ifdef DEBUG
+    printf("i:%d\n", i);
+    #endif
+    for (int j = 0; j < comparison_dataset.num_points; j++) {
+      //Don't copy the ith term
+      //Index will point to the correct term
+      int index;
+      if (j >= i) {
+        index = j + 1;
+      } else {
+        index = j;
+      }
+      #ifdef DEBUG
+      printf("Index: %d\n", index);
+      #endif
+      comparison_dataset.points[j] = benchmark_dataset->points[index];
+    }
+    //Create a comparison point out of that i'th term
+    Comparison_Point compare = {benchmark_dataset->points[i].dimension, NULL};
+    #ifdef DEBUG
+    printf("Gets to the knn search\n");
+    #endif
+    //if the classification matches the category, add it to a sum
+    if (knn_search(k, compare, &comparison_dataset) == benchmark_dataset->points[i].category) {
+      sum_correct++;
+    }
+
+
+  }
+  accuracy =  (float)sum_correct / (float)benchmark_dataset->num_points;
+
+  //Print out the percent accuracy for that value of k
+  #ifdef DEBUG
+  printf("Accuracy is %lf\%", accuracy * 100);
+  #endif
+
+  return accuracy;
+}
+
 #ifndef NDEBUG
 //Definitions required for the testrunner
 GREATEST_MAIN_DEFS();
@@ -558,7 +615,10 @@ int main (int argc, char **argv) {
 
   my_string filename = read_string("Filename: ");
 
+  //This is in user mode:
+
   Dataset generic_dataset = read_dataset_file(filename, &class_list);
+  #ifndef EVALUATE
   bool another_point = true;
   do {
     Comparison_Point compare = read_comparison_point_user(generic_dataset.dimensionality);
@@ -574,8 +634,12 @@ int main (int argc, char **argv) {
     printf("Point classified as: %s\n", class.str);
     another_point = read_boolean("Classfy another point? ");
   } while(another_point);
-
-
-
+  #endif
+  #ifdef EVALUATE
+  for (int k = 1; k < generic_dataset.num_points; k = k + 2) {
+    printf("k: %d, accuracy: %lf\n", k, evaluate_knn(k, &generic_dataset));
+  }
+  //for values of k up to the number of points that exist in the dataset
+  #endif
   return 0;
 }
