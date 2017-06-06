@@ -11,7 +11,7 @@
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
-#define EVALUATE
+// #define EVALUATE
 
 //Define a testing suite that is external to reduce code in this file
 SUITE_EXTERN(external_suite);
@@ -59,14 +59,6 @@ typedef enum boolean {
   false,
   true
 } bool;
-
-int knn_pow(int x, int n) {
-  int result = 1;
-  for (int i = 0; i < n - 1; i++) {
-    result = result * x;
-  }
-  return result;
-}
 
 //Distance
 //Return: number with the distance, a float
@@ -166,8 +158,6 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
   }
 
   //create an array the length of k to put all of the compared points in
-  //This should only have to take care of the top 3 points...
-  //Somehow I've implemented something completely different and it currently takes all of the points???? WHYYYYYY???
   compare.neighbour = (Point_Neighbour_Relationship*)malloc(k*sizeof(Point_Neighbour_Relationship));
   //For the first k points, just add whatever junk into the array. This way we can just update the largest.
   for (int i = 0; i < k; i++) {
@@ -229,7 +219,6 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
     neighbour_categories[c] = compare.neighbour[c].neighbour_pointer->category;
 
     #ifdef DEBUG
-    // printf("Neighbour number: %d\nNeighbour Distance: %lf\nCategory: %d\n++++++++++++++++++++++++++++++++++\n", i, compare.neighbour[i].distance, compare.neighbour[i].neighbour_pointer->category);
     printf("[DEBUG] compare.neighbour[%d].distance: %lf\n", c, compare.neighbour[c].distance);
     printf("[DEBUG] Category[%d]: %d\n", c, neighbour_categories[c]);
     #endif
@@ -241,7 +230,6 @@ int knn_search(int k, Comparison_Point compare, Dataset *datapoints) {
 
   //Find the mode of the categories
   //Call fuction with array of int and the length of the array and return the result
-  //printf("mode of categories: %d\n", mode(neighbour_categories, k));
 
   return mode(neighbour_categories, k);
 }
@@ -254,11 +242,6 @@ my_string classify(Classifier_List category_map, int category) {
   return class;
 }
 
-//Function that returns a classifier list read in from file
-//Reads in the labels file, specified in parameters
-//Generates a number of labels, inside of a classifier list and records the number
-//of classifiers in the classifier list
-
 Point read_point_user(int num_dimensions, int num_categories) {
   Point user_point;
   user_point.dimension = (float*)malloc(num_dimensions*sizeof(float));
@@ -269,7 +252,6 @@ Point read_point_user(int num_dimensions, int num_categories) {
   user_point.category = read_integer_range("Enter a category ID: ", 0, num_categories - 1);
   return user_point;
 }
-
 
 //Passing by reference is less safe, but as a result of the performance increase
 //it is justified
@@ -292,8 +274,7 @@ Dataset read_dataset_user(int num_categories) {
   //this operation would get very expensive. Implemention of a linked list would
   //potentially be beneficial for this calculation
   Dataset user_dataset;
-  //Dataset contains
-  //Dimensionality
+
   user_dataset.dimensionality = read_integer("Enter the number of dimensions of your classification data: ");
 
   //Number of points (dynamically updated for UX)
