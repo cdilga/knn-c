@@ -939,7 +939,7 @@ TEST knn_accuracy(void) {
   //Comments step through the expected classification of the knn
   //for each point removed and then consider the percentage correct for that k
   //In this case k=3
-  printf("Fucking hell\n");
+
   float dimensions0[] = {5.0};
   Point point0 = {dimensions0, 0};
   //Classed 1

@@ -11,7 +11,7 @@
 #include "file_input_output.h"
 #include "terminal_user_input.h"
 
-// #define EVALUATE
+#define EVALUATE
 
 //Define a testing suite that is external to reduce code in this file
 SUITE_EXTERN(external_suite);
@@ -567,7 +567,7 @@ float evaluate_knn(int k, Dataset *benchmark_dataset) {
 
   //Print out the percent accuracy for that value of k
   #ifdef DEBUG
-  printf("Accuracy is %lf\%", accuracy * 100);
+  printf("Accuracy is %lf percent", accuracy * 100);
   #endif
 
   return accuracy;
